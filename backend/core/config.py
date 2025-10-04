@@ -1,7 +1,16 @@
 import os
 from dotenv import load_dotenv
+import pathlib
 
-load_dotenv('../.env')
+# Carica .env relativo alla root del progetto (una directory sopra `backend/core`)
+here = pathlib.Path(__file__).resolve().parent
+project_root_dotenv = here.parent.joinpath('.env')
+if project_root_dotenv.exists():
+    load_dotenv(project_root_dotenv)
+else:
+    # fallback: prova a caricare .env dalla current working directory se presente
+    load_dotenv()
+
 class Settings:
     SQLALCHEMY_DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
