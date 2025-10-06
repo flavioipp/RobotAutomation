@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# Env files
+.env
+.env.*
+
+# IDE
+.vscode/
+
+# Docker
+*.log
+
+# Mac
+.DS_Store
+
+# Pytest cache
+.pytest_cache/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# local database
+db.sqlite3
