@@ -1,0 +1,4 @@
+/* App.css — intentionally left minimal after cleanup.
+   Styles were consolidated into component-specific CSS files (e.g. ScriptsTable.css)
+   and MUI components are used for layout. Keep this file to avoid breaking imports.
+*/

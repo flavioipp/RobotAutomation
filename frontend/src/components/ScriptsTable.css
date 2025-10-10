@@ -1,0 +1,166 @@
+.scripts-card {
+  padding: 16px;
+}
+
+.scripts-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.scripts-tableWrap {
+  overflow: auto;
+}
+
+.scripts-empty {
+  padding: 28px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.explorer-root {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start; /* align left panel to top */
+}
+
+.explorer-left {
+  width: 320px;
+}
+
+/* Make the left explorer panel sticky so it remains visible while scrolling the right content */
+.explorer-left {
+  position: -webkit-sticky; /* Safari */
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+  z-index: 2;
+}
+
+.explorer-right {
+  flex: 1;
+}
+
+.dir-box {
+  margin-top: 12px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.files-panel {
+  margin-left: 16px;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-meta {
+  font-size: 12px;
+  color: #666;
+}
+
+.preview-panel {
+  width: 480px;
+}
+
+@media (max-width: 840px) {
+  /* On small screens, disable sticky behavior to avoid layout issues */
+  .explorer-left {
+    position: static;
+    top: auto;
+  }
+  .preview-panel {
+    width: 100%;
+  }
+}
+
+.list-item-icon {
+  margin-right: 8px;
+}
+
+/* Header */
+.scripts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.scripts-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.scripts-title {
+  margin: 0;
+}
+
+
+/* Dir box title */
+.dir-title {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+/* Search field */
+.search-field {
+  min-width: 320px;
+  margin-bottom: 8px;
+}
+
+.paper-padding {
+  padding: 8px;
+}
+
+.files-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.files-title {
+  font-weight: 600;
+}
+.files-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.file-item-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-left: auto; /* push this group to the right */
+}
+.file-filename {
+  font-weight: 600;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.preview-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.preview-filename {
+  font-weight: 700;
+}
+.no-preview {
+  color: #666;
+}

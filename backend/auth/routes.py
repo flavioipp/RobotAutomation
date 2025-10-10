@@ -17,9 +17,9 @@ def get_db():
 @router.post("/register")
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(status_code=400, detail="Username già registrato")
+        raise HTTPException(status_code=400, detail="Username already registered")
     if db.query(User).filter(User.email == payload.email).first():
-        raise HTTPException(status_code=400, detail="Email già registrata")
+        raise HTTPException(status_code=400, detail="Email already registered")
     new_user = User(
         username=payload.username,
         email=payload.email,
@@ -28,12 +28,12 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return {"msg": "Utente creato", "id": new_user.id}
+    return {"msg": "User created", "id": new_user.id}
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == payload.username).first()
     if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Credenziali non valide")
+        raise HTTPException(status_code=400, detail="Invalid credentials")
     token = create_access_token({"sub": user.username})
     return {"access_token": token, "token_type": "bearer"}
