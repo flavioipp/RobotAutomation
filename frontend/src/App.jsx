@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import ScriptsTable from "./components/ScriptsTable";
+import ScriptBrowser from "./components/ScriptBrowser";
 import { APP_NAME } from './constants';
 import Footer from "./components/Footer";
 import PlaceholderCarousel from './components/PlaceholderCarousel';
 import Login from "./Login";
 import { setAuthToken, logout as apiLogout } from './api';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
@@ -19,7 +21,7 @@ import Box from '@mui/material/Box';
 
 function App() {
   const [token, setToken] = useState(null);
-  const [showContent, setShowContent] = useState(false);
+  // routing is handled by react-router
   const [appLoading, setAppLoading] = useState(false);
 
   useEffect(() => {
@@ -33,14 +35,17 @@ function App() {
   }, []);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const navigate = useNavigate();
+
   if (!token) {
-    return <Login onLogin={(t) => { setToken(t); setShowContent(false); }} />;
+    return <Login onLogin={(t) => { setAuthToken(t); setToken(t); navigate('/'); }} />;
   }
 
   const handleLogout = () => {
     try { apiLogout(); } catch (e) {}
     setToken(null);
-    setShowContent(false);
+    setAuthToken(null);
+    navigate('/');
   };
   // decode username from JWT (simple base64 decode of payload)
   const getUsernameFromToken = (t) => {
@@ -64,10 +69,10 @@ function App() {
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Typography variant="h6">{APP_NAME}</Typography>
-            {/* Link/button to open the main app page (ScriptsTable) */}
-            <Button size="small" onClick={() => setShowContent(prev => !prev)}>
-              {showContent ? 'Home' : 'Open'}
-            </Button>
+            {/* Navigation links */}
+            <Button size="small" component={Link} to="/scripts">Scripts</Button>
+            <Button size="small" component={Link} to="/browser">Script Browser</Button>
+            <Button size="small" component={Link} to="/">Home</Button>
           </div>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {username && <Typography variant="body1">{username}</Typography>}
@@ -78,26 +83,25 @@ function App() {
       </AppBar>
 
       <main className="app-content" role="main">
-        {/* Keep ScriptsTable mounted so it can load repos/dirs even when hidden */}
-        <div style={{ display: showContent ? 'block' : 'none' }}>
-          <ScriptsTable onLoadingChange={setAppLoading} />
-        </div>
-
-        {!showContent && (
-          // blank page placeholder shown on top while ScriptsTable is loading/hidden
-          <div style={{ padding: 48, minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', color: '#666' }}>
-              <h2 style={{ marginTop: 0 }}>{APP_NAME}</h2>
-              <div style={{ marginTop: 12 }}>
-                <PlaceholderCarousel />
+        <Routes>
+          <Route path="/" element={
+            // Home / placeholder
+            <div style={{ padding: 48, minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ textAlign: 'center', color: '#666' }}>
+                <h2 style={{ marginTop: 0 }}>{APP_NAME}</h2>
+                <div style={{ marginTop: 12 }}>
+                  <PlaceholderCarousel />
+                </div>
+                {appLoading && <div style={{ marginTop: 12 }}><CircularProgress size={24} /></div>}
               </div>
-              {appLoading && <div style={{ marginTop: 12 }}><CircularProgress size={24} /></div>}
             </div>
-          </div>
-        )}
+          } />
+          <Route path="/scripts" element={<ScriptsTable onLoadingChange={setAppLoading} />} />
+          <Route path="/browser" element={<ScriptBrowser />} />
+        </Routes>
 
         {/* Overlay loader when content is visible but ScriptsTable is loading */}
-        {showContent && appLoading && (
+        {appLoading && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: 64, bottom: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <CircularProgress />
           </div>

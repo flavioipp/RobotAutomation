@@ -1,7 +1,41 @@
 .placeholder-carousel { display:flex; flex-direction:column; align-items:center; gap:8px; }
-.carousel-frame{ position:relative; width:100%; max-width:800px; height:400px; background:#eee; display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:6px; }
-.carousel-image{ width:100%; height:100%; object-fit:cover; }
-.carousel-controls{ position:absolute; left:8px; top:8px; display:flex; gap:8px; }
-.carousel-dots{ display:flex; gap:6px; }
+
+/* Full-bleed carousel: image stretches to viewport width while keeping controls centered */
+.carousel-frame{
+	position:relative;
+	width:100vw;               /* span full viewport width */
+	max-width:100vw;
+	height:400px;
+	margin-left: calc(50% - 50vw); /* center the full-bleed element */
+	background:#eee;
+	display:block;
+	overflow:hidden;
+	border-radius:0; /* remove radius for full-bleed look; change if you prefer */
+}
+
+/* Slides are stacked absolutely and will fade using opacity */
+.carousel-image {
+	position:absolute;
+	left:50%;
+	top:0;
+	transform:translateX(-50%);
+	width:100vw;
+	height:100%;
+	object-fit:cover;
+	opacity:0;
+	transition: opacity 600ms ease-in-out;
+	z-index:1;
+}
+.carousel-image.active{
+	opacity:1;
+	z-index:2;
+}
+.carousel-controls{ position:absolute; left:16px; top:16px; display:flex; gap:8px; z-index:5; }
+.carousel-dots{ display:flex; gap:6px; position:relative; margin-top:8px; z-index:6; }
 .dot{ width:10px; height:10px; border-radius:50%; background:#ccc; border:none; }
 .dot.active{ background:#666; }
+
+/* Responsive height */
+@media (max-width:600px){
+	.carousel-frame{ height:220px; }
+}

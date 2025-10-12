@@ -28,6 +28,32 @@ export async function getScriptContent(scriptId) {
   return response.data;
 }
 
+// Filesystem endpoints (directly read from disk under REPOS_BASE_PATH)
+export async function fsGetRepos() {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/repos`);
+  return response.data;
+}
+
+export async function fsList(repo, path = '.') {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/list`, { params: { repo, path } });
+  return response.data;
+}
+
+export async function fsGetFile(repo, path) {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/file`, { params: { repo, path } });
+  return response.data;
+}
+
+export async function fsGetMeta(repo, path) {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/meta`, { params: { repo, path } });
+  return response.data;
+}
+
+export async function fsGetMetaDir(repo, path = '.') {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/meta-dir`, { params: { repo, path } });
+  return response.data;
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
