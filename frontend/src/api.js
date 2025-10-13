@@ -54,6 +54,21 @@ export async function fsGetMetaDir(repo, path = '.') {
   return response.data;
 }
 
+export async function fsSaveSuite(repo, name, files) {
+  const response = await axios.post(`${API_BASE_URL}/git/fs/save-suite`, { repo, name, files });
+  return response.data;
+}
+
+export async function fsListSuites(repo) {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/list-suites`, { params: { repo } });
+  return response.data;
+}
+
+export async function fsGetSuiteFile(repo, name) {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/suite-file`, { params: { repo, name } });
+  return response.data;
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });

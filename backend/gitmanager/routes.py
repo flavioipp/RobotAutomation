@@ -7,6 +7,9 @@ from pathlib import Path
 import os
 from backend.core.config import settings
 import re
+import json
+from pydantic import BaseModel
+from typing import List
 
 router = APIRouter()
 
@@ -187,6 +190,9 @@ def fs_list(repo: str, path: str = '.'):
         for child in sorted(target.iterdir()):
             # skip hidden files/dirs (any path segment starting with '.')
             if _is_hidden(child, repo_dir):
+                continue
+            # hide repository-internal 'suites' directories from filesystem listings
+            if child.is_dir() and child.name == 'suites':
                 continue
             entries.append({
                 "name": child.name,
@@ -419,3 +425,152 @@ def fs_get_meta_dir(repo: str, path: str = '.'):
             metas[str(child.relative_to(repo_dir))] = {"path": str(child.relative_to(repo_dir)), "description": description, "topology": topology, "author": author, "explicit_fields": explicit_fields}
 
     return metas
+
+
+class SuitePayload(BaseModel):
+    repo: str
+    name: str
+    files: List[str]
+
+
+@router.post("/fs/save-suite")
+def fs_save_suite(payload: SuitePayload):
+    repo = payload.repo
+    name = payload.name
+    files = payload.files
+    """Save a test suite manifest (JSON) under repo/suites/<name>.json.
+
+    Payload:
+    - repo: repository directory name
+    - name: suite name (filename-safe)
+    - files: array of relative file paths inside the repo
+    """
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo).resolve()
+    if not repo_dir.exists() or not repo_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Repo not found on disk")
+
+    # basic validation for suite name (avoid traversal)
+    if not name or '/' in name or '\\' in name:
+        raise HTTPException(status_code=400, detail="Invalid suite name")
+
+    # ensure files are inside the repo and not hidden
+    clean_files = []
+    for f in files:
+        target = (repo_dir / f).resolve()
+        try:
+            target.relative_to(repo_dir)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"File '{f}' is outside the repo")
+        # do not allow hidden files
+        if _is_hidden(target, repo_dir):
+            raise HTTPException(status_code=400, detail=f"File '{f}' is hidden")
+        if not target.exists() or not target.is_file():
+            raise HTTPException(status_code=404, detail=f"File '{f}' not found")
+        clean_files.append(str(target.relative_to(repo_dir)))
+
+    suites_dir = repo_dir / 'suites'
+    try:
+        suites_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not create suites directory: {e}")
+
+    manifest = {
+        'name': name,
+        'files': clean_files
+    }
+
+    out_path = suites_dir / f"{name}.json"
+    try:
+        out_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not write suite manifest: {e}")
+
+    # also generate a .robot file that runs each script using the Process library
+    robot_lines = []
+    robot_lines.append("*** Settings ***")
+    robot_lines.append("Library    Process")
+    robot_lines.append("")
+    robot_lines.append("*** Test Cases ***")
+    for f_rel in clean_files:
+        # test case name from filename
+        name_tc = Path(f_rel).stem.replace('_', ' ')
+        robot_lines.append(name_tc)
+        # compute path relative to suites directory
+        try:
+            rel_from_suites = str((repo_dir / f_rel).relative_to(suites_dir))
+        except Exception:
+            # fallback to ../ relative path
+            rel_from_suites = os.path.relpath(str(repo_dir / f_rel), start=str(suites_dir))
+        # Use ${CURDIR} so path resolves relative to the .robot location
+        robot_lines.append(f"    Run Process    python    ${{CURDIR}}/{rel_from_suites}")
+        robot_lines.append("")
+
+    out_robot = suites_dir / f"{name}.robot"
+    try:
+        out_robot.write_text('\n'.join(robot_lines), encoding='utf-8')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not write robot suite file: {e}")
+
+    return {"path": str(out_path.relative_to(repo_dir)), "manifest": manifest, "robot": str(out_robot.relative_to(repo_dir))}
+
+
+@router.get("/fs/list-suites")
+def fs_list_suites(repo: str):
+    """List suite manifests under repo/suites/*.json and return their content plus robot path if present."""
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo).resolve()
+    if not repo_dir.exists() or not repo_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Repo not found on disk")
+
+    suites_dir = repo_dir / 'suites'
+    if not suites_dir.exists() or not suites_dir.is_dir():
+        return []
+
+    results = []
+    for f in sorted(suites_dir.iterdir()):
+        if not f.is_file() or f.suffix.lower() != '.json':
+            continue
+        try:
+            content = f.read_text(encoding='utf-8')
+            manifest = json.loads(content)
+        except Exception:
+            manifest = None
+        robot_path = None
+        robot_candidate = suites_dir / (f.stem + '.robot')
+        if robot_candidate.exists() and robot_candidate.is_file():
+            robot_path = str(robot_candidate.relative_to(repo_dir))
+        results.append({
+            'name': f.stem,
+            'path': str(f.relative_to(repo_dir)),
+            'manifest': manifest,
+            'robot': robot_path
+        })
+
+    return results
+
+
+@router.get("/fs/suite-file")
+def fs_get_suite_file(repo: str, name: str):
+    """Return the content of the generated .robot file for a suite name under repo/suites/<name>.robot"""
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo).resolve()
+    if not repo_dir.exists() or not repo_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Repo not found on disk")
+
+    suites_dir = repo_dir / 'suites'
+    robot_path = suites_dir / f"{name}.robot"
+    try:
+        robot_path.relative_to(repo_dir)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not robot_path.exists() or not robot_path.is_file():
+        raise HTTPException(status_code=404, detail="Robot file not found")
+
+    try:
+        content = robot_path.read_text(encoding='utf-8')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read robot file: {e}")
+
+    return {"path": str(robot_path.relative_to(repo_dir)), "content": content}

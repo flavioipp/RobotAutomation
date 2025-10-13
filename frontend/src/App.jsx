@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { ToastProvider } from './components/ToastContext';
 import ScriptsTable from "./components/ScriptsTable";
 import ScriptBrowser from "./components/ScriptBrowser";
+import SavedSuites from './pages/SavedSuites';
 import { APP_NAME } from './constants';
 import Footer from "./components/Footer";
 import PlaceholderCarousel from './components/PlaceholderCarousel';
@@ -64,6 +66,7 @@ function App() {
   const username = getUsernameFromToken(token);
 
   return (
+    <ToastProvider>
     <div className="app-root">
       <AppBar position="fixed" color="default" elevation={1} className="app-header">
         <Toolbar sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -72,6 +75,7 @@ function App() {
             {/* Navigation links */}
             <Button size="small" component={Link} to="/scripts">Scripts</Button>
             <Button size="small" component={Link} to="/browser">Script Browser</Button>
+            <Button size="small" component={Link} to="/suites">Saved Suites</Button>
             <Button size="small" component={Link} to="/">Home</Button>
           </div>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -98,6 +102,7 @@ function App() {
           } />
           <Route path="/scripts" element={<ScriptsTable onLoadingChange={setAppLoading} />} />
           <Route path="/browser" element={<ScriptBrowser />} />
+          <Route path="/suites" element={<SavedSuites />} />
         </Routes>
 
         {/* Overlay loader when content is visible but ScriptsTable is loading */}
@@ -121,6 +126,7 @@ function App() {
         </DialogActions>
       </Dialog>
     </div>
+    </ToastProvider>
   );
 }
 

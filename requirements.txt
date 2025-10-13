@@ -11,3 +11,4 @@ pydantic[email]
 gitpython
 python-dotenv
 pymysql
+python-multipart
