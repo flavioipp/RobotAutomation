@@ -1,9 +1,4 @@
 /* Layout variables */
-:root {
-  --app-header-height: 64px;
-  --app-footer-height: 56px;
-}
-
 html, body, #root {
   height: 100% !important;
   margin: 0 !important;
