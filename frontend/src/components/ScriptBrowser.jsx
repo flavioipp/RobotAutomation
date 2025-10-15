@@ -8,12 +8,12 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
-export default function ScriptBrowser() {
-  const [repos, setRepos] = useState([]);
-  const [selectedRepo, setSelectedRepo] = useState(null);
+export default function ScriptBrowser(props = {}) {
+  const [repos, setRepos] = useState(props.repos || []);
+  const [selectedRepo, setSelectedRepo] = useState(props.selectedRepo || null);
   const [path, setPath] = useState('.');
   const [entries, setEntries] = useState([]);
-  const [filterText, setFilterText] = useState('');
+  const [filterText, setFilterText] = useState(props.filterText || '');
   const [metadata, setMetadata] = useState({});
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
@@ -21,7 +21,8 @@ export default function ScriptBrowser() {
   const [loading, setLoading] = useState(false);
   const [cart, setCart] = useState([]); // list of relative paths added to the suite
   const [suiteName, setSuiteName] = useState('my_suite');
-  const [cartVisible, setCartVisible] = useState(false);
+  // if parent controls cart visibility, use that as source of truth
+  const [cartVisible, setCartVisible] = useState(props.cartVisible || false);
   const [dragOver, setDragOver] = useState(false);
   const { showToast } = useToast();
   const [badgeAnimate, setBadgeAnimate] = useState(false);
@@ -30,12 +31,16 @@ export default function ScriptBrowser() {
     async function loadRepos() {
       try {
         const r = await fsGetRepos();
+        // update local state
         setRepos(r);
+        // if parent provided a setter, update it too so AppBar can show repos
+        if (props.setRepos) try { props.setRepos(r); } catch (e) {}
   // prefill selected repo from localStorage if available and valid
         try {
           const last = localStorage.getItem('last_repo');
           if (last && r.includes(last)) {
             setSelectedRepo(last);
+            if (props.setSelectedRepo) try { props.setSelectedRepo(last); } catch (e) {}
             setPath('.');
             setSelectedFile(null);
             setPreviewFile(null);
@@ -50,6 +55,20 @@ export default function ScriptBrowser() {
     }
     loadRepos();
   }, [showToast]);
+
+  // sync incoming props -> local state when parent controls them
+  useEffect(() => {
+    if (props.repos) setRepos(props.repos);
+  }, [props.repos]);
+  useEffect(() => {
+    if (props.selectedRepo !== undefined) setSelectedRepo(props.selectedRepo);
+  }, [props.selectedRepo]);
+  useEffect(() => {
+    if (props.filterText !== undefined) setFilterText(props.filterText);
+  }, [props.filterText]);
+  useEffect(() => {
+    if (props.cartVisible !== undefined) setCartVisible(props.cartVisible);
+  }, [props.cartVisible]);
 
   useEffect(() => {
     async function loadEntries() {
@@ -133,15 +152,17 @@ export default function ScriptBrowser() {
     }
   }, [cart.length]);
 
+  // propagate cart count to parent if requested
+  useEffect(() => {
+    if (props.setCartCount) {
+      try { props.setCartCount(cart.length); } catch (e) {}
+    }
+  }, [cart.length]);
+
   return (
     <div className="script-browser-root" style={{ padding: 24 }}>
       <div className="repo-top">
-        <h3 style={{ margin: 0 }}>Repositories</h3>
-        <div className="repo-list-horizontal">
-          {repos.map(r => (
-            <button key={r} className={`repo-btn ${r === selectedRepo ? 'selected' : ''}`} onClick={() => { setSelectedRepo(r); setPath('.'); setSelectedFile(null); setPreviewFile(null); localStorage.setItem('last_repo', r); }}>{r}</button>
-          ))}
-        </div>
+        <h3 style={{ margin: 0 }}>{selectedRepo ? selectedRepo : 'Select a repository from the AppBar'}</h3>
       </div>
 
   <div className={`bottom-grid ${gridClass}`}>
@@ -153,12 +174,7 @@ export default function ScriptBrowser() {
             </div>
             <div className="browser-actions">
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="text" placeholder="Filter files..." value={filterText} onChange={(e) => setFilterText(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd' }} />
                 <button className="icon-btn" onClick={upOne} disabled={!selectedRepo} title="Up"><ArrowUpwardIcon fontSize="small"/></button>
-                <button className="cart-toggle-btn" onClick={() => setCartVisible(v => !v)} title="Toggle Suite Cart" aria-label="Toggle Suite Cart">
-                  <ShoppingCartIcon fontSize="small" />
-                  {cart.length > 0 && <span key={cart.length} className={`cart-badge ${badgeAnimate ? 'animate' : ''}`}>{cart.length}</span>}
-                </button>
               </div>
             </div>
           </div>
@@ -244,42 +260,46 @@ export default function ScriptBrowser() {
         {cartVisible && (
           <aside className="cart-pane">
           <h3>Suite Cart</h3>
-          <div className={`cart-dropzone ${dragOver ? 'drag-over' : ''}`} onDragOver={(ev) => { ev.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(ev) => { ev.preventDefault(); setDragOver(false); const p = ev.dataTransfer.getData('text/plain'); if (p && !cart.includes(p)) { setCart([...cart, p]); setCartVisible(true); } }}>
-            <div style={{ padding: 8 }}>Drag files here or click + on a file to add</div>
+          <div className={`cart-body`}>
+            <div className={`cart-dropzone ${dragOver ? 'drag-over' : ''}`} onDragOver={(ev) => { ev.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(ev) => { ev.preventDefault(); setDragOver(false); const p = ev.dataTransfer.getData('text/plain'); if (p && !cart.includes(p)) { setCart([...cart, p]); setCartVisible(true); } }}>
+              <div style={{ padding: 8 }}>Drag files here or click + on a file to add</div>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <label>Suite name:</label>
+              <input value={suiteName} onChange={(e) => setSuiteName(e.target.value)} style={{ width: '100%', padding: 6, marginTop: 6 }} />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <ul className="cart-list">
+                {cart.map((p, idx) => (
+                  <li key={p} className="cart-item">
+                    <span style={{ flex: 1 }} title={p}>{p.split('/').pop()}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="icon-btn" title="Up" onClick={() => { if (idx === 0) return; const c = [...cart]; [c[idx-1], c[idx]] = [c[idx], c[idx-1]]; setCart(c); }}>▲</button>
+                      <button className="icon-btn" title="Down" onClick={() => { if (idx === cart.length-1) return; const c = [...cart]; [c[idx+1], c[idx]] = [c[idx], c[idx+1]]; setCart(c); }}>▼</button>
+                      <button className="icon-btn" title="Remove" onClick={() => { setCart(cart.filter(x => x !== p)); }}>✕</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-          <div style={{ marginTop: 8 }}>
-            <label>Suite name:</label>
-            <input value={suiteName} onChange={(e) => setSuiteName(e.target.value)} style={{ width: '100%', padding: 6, marginTop: 6 }} />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <ul className="cart-list">
-              {cart.map((p, idx) => (
-                <li key={p} className="cart-item">
-                  <span style={{ flex: 1 }} title={p}>{p.split('/').pop()}</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="icon-btn" title="Up" onClick={() => { if (idx === 0) return; const c = [...cart]; [c[idx-1], c[idx]] = [c[idx], c[idx-1]]; setCart(c); }}>▲</button>
-                    <button className="icon-btn" title="Down" onClick={() => { if (idx === cart.length-1) return; const c = [...cart]; [c[idx+1], c[idx]] = [c[idx], c[idx+1]]; setCart(c); }}>▼</button>
-                    <button className="icon-btn" title="Remove" onClick={() => { setCart(cart.filter(x => x !== p)); }}>✕</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <button aria-label="Save Suite" title="Save Suite" onClick={async () => {
-              if (!selectedRepo) return showToast('Select a repo first', { type: 'error' });
-              if (!suiteName) return showToast('Suite name required', { type: 'error' });
-              if (!cart.length) return showToast('No files in suite', { type: 'error' });
-              try {
-                setLoading(true);
-                const res = await fsSaveSuite(selectedRepo, suiteName, cart);
-                showToast('Suite saved: ' + res.path, { type: 'success' });
-              } catch (err) {
-                console.error(err);
-                showToast('Could not save suite: ' + (err.response?.data?.detail || err.message), { type: 'error' });
-              } finally { setLoading(false); }
-            }} disabled={loading} className="save-btn"><span className="save-label">Save Suite</span></button>
-            <button onClick={() => { setCart([]); }} className="clear-btn">Clear</button>
+          <div className="cart-footer">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button aria-label="Save Suite" title="Save Suite" onClick={async () => {
+                if (!selectedRepo) return showToast('Select a repo first', { type: 'error' });
+                if (!suiteName) return showToast('Suite name required', { type: 'error' });
+                if (!cart.length) return showToast('No files in suite', { type: 'error' });
+                try {
+                  setLoading(true);
+                  const res = await fsSaveSuite(selectedRepo, suiteName, cart);
+                  showToast('Suite saved: ' + res.path, { type: 'success' });
+                } catch (err) {
+                  console.error(err);
+                  showToast('Could not save suite: ' + (err.response?.data?.detail || err.message), { type: 'error' });
+                } finally { setLoading(false); }
+              }} disabled={loading} className="save-btn"><span className="save-label">Save Suite</span></button>
+              <button onClick={() => { setCart([]); }} className="clear-btn">Clear</button>
+            </div>
           </div>
 
           {/* Saved suites moved to dedicated page */}

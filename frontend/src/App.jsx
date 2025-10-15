@@ -20,6 +20,14 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 
 import { useLocation } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
+import InputBase from '@mui/material/InputBase';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import Badge from '@mui/material/Badge';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+
 function App() {
   const [token, setToken] = useState(null);
   // routing is handled by react-router
@@ -56,10 +64,6 @@ function App() {
     return () => { mo.disconnect(); window.removeEventListener('resize', read); };
   }, []);
 
-  if (!token) {
-    return <Login onLogin={(t) => { setAuthToken(t); setToken(t); navigate('/'); }} />;
-  }
-
   const handleLogout = () => {
     try { apiLogout(); } catch (e) {}
     setToken(null);
@@ -82,6 +86,14 @@ function App() {
 
   const username = getUsernameFromToken(token);
   const appBarHeight = 64;
+  // publish header/footer heights as CSS variables for layout calculations
+  useEffect(() => {
+    try {
+      document.documentElement.style.setProperty('--app-header-height', `${appBarHeight}px`);
+      // if you have a footer height in future, set --app-footer-height similarly
+      document.documentElement.style.setProperty('--app-footer-height', `0px`);
+    } catch (e) {}
+  }, [appBarHeight]);
   const getPageMeta = (pathname) => {
     // simple mapping for sidebar routes to title/subtitle
     switch (pathname) {
@@ -99,6 +111,18 @@ function App() {
 
   const pageMeta = getPageMeta(location.pathname);
 
+  // browser-specific shared state (when AppBar hosts some controls)
+  // Hooks must be called unconditionally (before any early returns)
+  const [browserRepos, setBrowserRepos] = useState([]);
+  const [browserSelectedRepo, setBrowserSelectedRepo] = useState(null);
+  const [browserFilterText, setBrowserFilterText] = useState('');
+  const [browserCartCount, setBrowserCartCount] = useState(0);
+  const [browserCartVisible, setBrowserCartVisible] = useState(false);
+
+  if (!token) {
+    return <Login onLogin={(t) => { setAuthToken(t); setToken(t); navigate('/'); }} />;
+  }
+
   return (
     <ToastProvider>
       <div className="app-root">
@@ -107,14 +131,32 @@ function App() {
         <Sidebar username={username} onLogout={() => setConfirmOpen(true)} />
 
         <AppBar position="fixed" elevation={2} sx={{ left: sidebarWidth, width: `calc(100% - ${sidebarWidth})`, transition: 'left 160ms ease, width 160ms ease', zIndex: 1400, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
-          <Toolbar sx={{ minHeight: appBarHeight, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', pl: 3 }}>
-            <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
-              {pageMeta.title}
-            </Typography>
-            {pageMeta.subtitle && (
-              <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
-                {pageMeta.subtitle}
+          <Toolbar sx={{ minHeight: appBarHeight, display: 'flex', alignItems: 'center', justifyContent: 'space-between', pl: 3, pr: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
+                {pageMeta.title}
               </Typography>
+              {pageMeta.subtitle && (
+                <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
+                  {pageMeta.subtitle}
+                </Typography>
+              )}
+            </Box>
+
+            {/* when on Script Browser page, show repo selector, search and cart toggle in AppBar */}
+            {location.pathname === '/browser' && (
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Select size="small" value={browserSelectedRepo || ''} onChange={(e) => setBrowserSelectedRepo(e.target.value)} sx={{ minWidth: 140, bgcolor: 'background.paper' }}>
+                  <MenuItem value="">Select repo</MenuItem>
+                  {browserRepos.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                </Select>
+                <InputBase placeholder="Filter files..." value={browserFilterText} onChange={(e) => setBrowserFilterText(e.target.value)} sx={{ bgcolor: 'background.paper', px: 1, py: 0.5, borderRadius: 1, minWidth: 200 }} />
+                <IconButton color="inherit" onClick={() => setBrowserCartVisible(v => !v)}>
+                  <Badge badgeContent={browserCartCount} color="secondary">
+                    <ShoppingCartIcon />
+                  </Badge>
+                </IconButton>
+              </Box>
             )}
           </Toolbar>
         </AppBar>
@@ -122,7 +164,18 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/scripts" element={<ScriptsTable onLoadingChange={setAppLoading} />} />
-          <Route path="/browser" element={<ScriptBrowser />} />
+          <Route path="/browser" element={<ScriptBrowser
+            repos={browserRepos}
+            setRepos={setBrowserRepos}
+            selectedRepo={browserSelectedRepo}
+            setSelectedRepo={setBrowserSelectedRepo}
+            filterText={browserFilterText}
+            setFilterText={setBrowserFilterText}
+            cartCount={browserCartCount}
+            setCartCount={setBrowserCartCount}
+            cartVisible={browserCartVisible}
+            setCartVisible={setBrowserCartVisible}
+          />} />
           <Route path="/suites" element={<SavedSuites />} />
         </Routes>
 

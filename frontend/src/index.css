@@ -22,8 +22,18 @@ body {
   height: calc(100vh - (var(--app-header-height) + var(--app-footer-height))) !important;
   margin-top: var(--app-header-height) !important;
   margin-bottom: var(--app-footer-height) !important;
-  overflow: auto !important;
+  /* hide outer scrollbar and let inner panes manage scrolling */
+  overflow: hidden !important;
   -webkit-overflow-scrolling: touch !important;
+  display: flex !important;
+  flex-direction: column !important;
+  /* allow children with overflow:auto to size correctly */
+  min-height: 0 !important;
+}
+
+/* ensure direct children of app-content can shrink so their inner overflows work */
+.app-content > * {
+  min-height: 0 !important;
 }
 
 .app-footer {

@@ -26,7 +26,7 @@
 }
 .repo-list-horizontal { display:flex; gap:8px; flex-wrap:wrap; }
 .repo-list-horizontal .repo-btn { padding:6px 10px; border-radius:6px; border:1px solid #e6e6e6; background:transparent; cursor:pointer; }
-.script-browser-root { min-height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); background: var(--sb-bg); color: var(--sb-foreground); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; overflow: auto; -webkit-overflow-scrolling: touch; }
+.script-browser-root { min-height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); background: var(--sb-bg); color: var(--sb-foreground); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
 .script-browser-root h2, .script-browser-root h3{ margin:0; }
 
 /* Top repo row and bottom multi-column layout */
@@ -44,20 +44,54 @@
 .repo-list-horizontal .repo-btn { padding:8px 12px; border-radius:999px; border:1px solid rgba(37,99,235,0.12); background:transparent; cursor:pointer; color:var(--sb-accent); font-weight:600; transition: all .15s ease; }
 .repo-list-horizontal .repo-btn.selected { background: linear-gradient(90deg, rgba(37,99,235,0.09), rgba(37,99,235,0.04)); box-shadow: var(--sb-shadow); transform: translateY(-2px); }
 
-.bottom-grid { width: 100%; display:grid; gap:20px; align-items:start; padding: 0 18px 40px; }
+.bottom-grid { 
+	width: 100%;
+	display: grid;
+	gap: 20px;
+	padding: 0 18px 40px;
+	flex: 1 1 auto;
+	height: 100%;
+	overflow: hidden;
+	/* make grid rows stretch to available height so columns can be independently scrollable */
+	grid-auto-rows: 1fr;
+	align-items: stretch;
+}
+.script-browser-root, .bottom-grid, .browser-main, .preview-pane { /* allow children with overflow:auto to work inside flex/grid containers */
+	min-height: 0;
+}
 .bottom-grid.preview-only { grid-template-columns: 1fr 480px; }
-.bottom-grid.cart-only { grid-template-columns: 1fr 460px; }
-.bottom-grid.preview-and-cart { grid-template-columns: 1fr 480px 460px; }
+.bottom-grid.cart-only { grid-template-columns: 1fr 30%; }
+.bottom-grid.preview-and-cart { grid-template-columns: 1fr 45% 30%; }
+
+/* Responsive adjustments */
+@media (min-width: 1400px) {
+	/* on very wide screens slightly reduce cart percent to give more main area */
+	.bottom-grid.cart-only { grid-template-columns: 1fr 28%; }
+	.bottom-grid.preview-and-cart { grid-template-columns: 1fr 42% 28%; }
+}
+
+@media (max-width: 1200px) {
+	/* on laptop / tablet give the cart a little more relative space */
+	.bottom-grid.cart-only { grid-template-columns: 1fr 35%; }
+	.bottom-grid.preview-and-cart { grid-template-columns: 1fr 50% 35%; }
+}
+
+@media (max-width: 1000px) {
+	.bottom-grid { grid-template-columns: 1fr; }
+}
 .bottom-grid.no-preview { grid-template-columns: 1fr; }
 
-.browser-main { display:block; background: transparent; }
+.browser-main { display:flex; flex-direction: column; background: transparent; overflow: hidden; min-height: 0; }
 
+.preview-pane { display:flex; flex-direction:column; overflow: auto; min-height: 0; }
 .preview-pane h3 { margin-top:0; font-size:16px; }
 .preview-box {
 	background: linear-gradient(180deg,#071129 0%, #0f1720 100%);
 	color: #e6eef8;
 	padding: 14px;
-	height: 64vh;
+	/* let preview-box flex to available space and scroll internally */
+	flex: 1 1 auto;
+	min-height: 0;
 	overflow: auto;
 	white-space: pre-wrap;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
@@ -71,7 +105,7 @@
 .repo-list li { margin-bottom:8px; }
 .repo-list .repo-btn { width:100%; text-align:left; padding:8px; border-radius:6px; border:none; background:transparent; cursor:pointer; }
 
-.browser-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.browser-header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex: 0 0 auto; }
 .subtle { color:var(--sb-muted); font-size:13px; }
 .browser-actions .icon-btn{ border:none; background:transparent; cursor:pointer; padding:6px; border-radius:6px; transition: background .12s ease; }
 .browser-actions .icon-btn:hover{ background: rgba(37,99,235,0.06); }
@@ -81,6 +115,8 @@
 .crumb:hover{ background:#f2f6ff; }
 
 .entries ul{ list-style:none; padding:0; margin:0; }
+.browser-main .entries{ display:flex; flex-direction:column; flex:1 1 auto; overflow:auto; min-height: 0; }
+.browser-main .entries ul { flex: 1 1 auto; }
 .entry{ display:flex; justify-content:space-between; align-items:center; padding:12px; border-radius:10px; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; background: #fff; box-shadow: 0 1px 0 rgba(11,13,16,0.02); border: 1px solid rgba(11,13,16,0.03); }
 .entry:hover{ transform: translateY(-4px); box-shadow: 0 8px 24px rgba(12,18,28,0.08); }
 .entry.active{ background: linear-gradient(90deg,#eef6ff, #f7fbff); }
@@ -101,9 +137,7 @@
 
 .save-btn .save-label{ white-space:nowrap; min-width:84px; display:inline-block; }
 
-/* Cart toggle button */
-.cart-toggle-btn{ position: relative; display:inline-flex; align-items:center; gap:8px; padding:8px; border-radius:8px; background: linear-gradient(90deg, rgba(37,99,235,0.08), rgba(37,99,235,0.04)); border: 1px solid rgba(37,99,235,0.12); cursor:pointer; color: var(--sb-primary); }
-.cart-toggle-btn:hover{ transform: translateY(-2px); box-shadow: 0 8px 20px rgba(37,99,235,0.08); }
+/* Cart toggle button removed - controls are now in the AppBar */
 .cart-badge{ position: absolute; top: -6px; right: -6px; background: #ef4444; color: #fff; padding: 2px 6px; border-radius: 999px; font-size: 12px; font-weight:700; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
 
 @keyframes pop-badge {
@@ -133,7 +167,12 @@
 .modal-body { padding: 12px 16px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:13px; white-space: pre-wrap; }
 .modal-close { border:none; background:transparent; cursor:pointer; font-size:16px; }
 /* Suite cart styles */
-.cart-pane { background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(2,6,23,0.06); }
+.cart-pane { background: #fff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(2,6,23,0.06); display:flex; flex-direction:column; overflow: hidden; min-height: 0; }
+.cart-body { overflow: auto; flex: 1 1 auto; min-height: 0; }
+.cart-body .cart-list { overflow: auto; }
+.cart-footer { flex: 0 0 auto; margin-top: 12px; border-top: 1px solid #eee; padding-top: 12px; background: transparent; }
+
+/* (no grid-column transition by default) */
 .cart-dropzone { border: 1px dashed #ddd; border-radius: 6px; padding: 8px; min-height: 60px; display:flex; align-items:center; justify-content:center; }
 .cart-dropzone.drag-over { background: #f2f9ff; border-color: #bde0ff; }
 .cart-list { list-style:none; padding:0; margin:0; }
