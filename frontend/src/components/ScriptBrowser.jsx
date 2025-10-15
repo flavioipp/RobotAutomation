@@ -6,14 +6,15 @@ import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 
 export default function ScriptBrowser(props = {}) {
-  const [repos, setRepos] = useState(props.repos || []);
-  const [selectedRepo, setSelectedRepo] = useState(props.selectedRepo || null);
+  // Destructure props so hooks can reference explicit dependencies
+  const { repos: propsRepos, selectedRepo: propsSelectedRepo, filterText: propsFilterText, cartVisible: propsCartVisible, setRepos: parentSetRepos, setSelectedRepo: parentSetSelectedRepo, setCartCount: parentSetCartCount } = props;
+  const [, setRepos] = useState(propsRepos || []);
+  const [selectedRepo, setSelectedRepo] = useState(propsSelectedRepo || null);
   const [path, setPath] = useState('.');
   const [entries, setEntries] = useState([]);
-  const [filterText, setFilterText] = useState(props.filterText || '');
+  const [filterText, setFilterText] = useState(propsFilterText || '');
   const [metadata, setMetadata] = useState({});
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
@@ -25,7 +26,7 @@ export default function ScriptBrowser(props = {}) {
   const [cartVisible, setCartVisible] = useState(props.cartVisible || false);
   const [dragOver, setDragOver] = useState(false);
   const { showToast } = useToast();
-  const [badgeAnimate, setBadgeAnimate] = useState(false);
+  // badge animation state removed (was unused)
   
   useEffect(() => {
     async function loadRepos() {
@@ -33,14 +34,14 @@ export default function ScriptBrowser(props = {}) {
         const r = await fsGetRepos();
         // update local state
         setRepos(r);
-        // if parent provided a setter, update it too so AppBar can show repos
-        if (props.setRepos) try { props.setRepos(r); } catch (e) {}
+  // if parent provided a setter, update it too so AppBar can show repos
+  if (parentSetRepos) try { parentSetRepos(r); } catch (e) {}
   // prefill selected repo from localStorage if available and valid
         try {
           const last = localStorage.getItem('last_repo');
-          if (last && r.includes(last)) {
+            if (last && r.includes(last)) {
             setSelectedRepo(last);
-            if (props.setSelectedRepo) try { props.setSelectedRepo(last); } catch (e) {}
+            if (parentSetSelectedRepo) try { parentSetSelectedRepo(last); } catch (e) {}
             setPath('.');
             setSelectedFile(null);
             setPreviewFile(null);
@@ -54,21 +55,13 @@ export default function ScriptBrowser(props = {}) {
       }
     }
     loadRepos();
-  }, [showToast]);
+  }, [showToast, parentSetRepos, parentSetSelectedRepo]);
 
-  // sync incoming props -> local state when parent controls them
-  useEffect(() => {
-    if (props.repos) setRepos(props.repos);
-  }, [props.repos]);
-  useEffect(() => {
-    if (props.selectedRepo !== undefined) setSelectedRepo(props.selectedRepo);
-  }, [props.selectedRepo]);
-  useEffect(() => {
-    if (props.filterText !== undefined) setFilterText(props.filterText);
-  }, [props.filterText]);
-  useEffect(() => {
-    if (props.cartVisible !== undefined) setCartVisible(props.cartVisible);
-  }, [props.cartVisible]);
+  // sync incoming props to local state when parent controls them
+  useEffect(() => { if (propsRepos) setRepos(propsRepos); }, [propsRepos]);
+  useEffect(() => { if (propsSelectedRepo !== undefined) setSelectedRepo(propsSelectedRepo); }, [propsSelectedRepo]);
+  useEffect(() => { if (propsFilterText !== undefined) setFilterText(propsFilterText); }, [propsFilterText]);
+  useEffect(() => { if (propsCartVisible !== undefined) setCartVisible(propsCartVisible); }, [propsCartVisible]);
 
   useEffect(() => {
     async function loadEntries() {
@@ -143,19 +136,12 @@ export default function ScriptBrowser(props = {}) {
   // determine grid layout class based on visibility of preview and cart
   const gridClass = previewFile ? (cartVisible ? 'preview-and-cart' : 'preview-only') : (cartVisible ? 'cart-only' : 'no-preview');
 
-  useEffect(() => {
-    if (cart.length > 0) {
-      // trigger pop animation
-      setBadgeAnimate(true);
-      const t = setTimeout(() => setBadgeAnimate(false), 500);
-      return () => clearTimeout(t);
-    }
-  }, [cart.length]);
+  // badge animation removed (was unused)
 
   // propagate cart count to parent if requested
   useEffect(() => {
-    if (props.setCartCount) {
-      try { props.setCartCount(cart.length); } catch (e) {}
+    if (parentSetCartCount) {
+      try { parentSetCartCount(cart.length); } catch (e) {}
     }
   }, [cart.length]);
 

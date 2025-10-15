@@ -49,7 +49,7 @@ function App() {
   const location = useLocation();
   // read sidebar width from CSS var so main content moves when sidebar opens/closes
   // store as a pixel string (e.g. '240px') so alignment is exact with Sidebar's CSS variable
-  const [sidebarWidth, setSidebarWidth] = useState('240px');
+  const [sidebarWidth, setSidebarWidth] = useState('280px');
   useEffect(() => {
     const read = () => {
       try {
@@ -102,7 +102,7 @@ function App() {
       case '/browser':
         return { title: 'TestCase Browser', subtitle: 'Preview Testcases and create suites' };
       case '/suites':
-        return { title: 'Saved Suites', subtitle: 'Your saved test suites' };
+        return { title: 'Suites Management', subtitle: 'Your saved test suites' };
       case '/':
       default:
         return { title: 'Dashboard', subtitle: 'Overview and quick actions' };

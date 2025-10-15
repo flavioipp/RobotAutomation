@@ -10,7 +10,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { Link, useLocation } from 'react-router-dom';
 import { APP_NAME } from '../constants';
 
-const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
+const Sidebar = ({ drawerWidth = 280, username = null, onLogout = null }) => {
   const location = useLocation();
   const [open, setOpen] = useState(true);
   const collapsedWidth = 72;
@@ -28,7 +28,7 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
     { text: 'Home', to: '/', icon: <HomeIcon /> },
     { text: 'Scripts', to: '/scripts', icon: <DescriptionIcon /> },
     { text: 'Script Browser', to: '/browser', icon: <FolderOpenIcon /> },
-    { text: 'Saved Suites', to: '/suites', icon: <SaveIcon /> },
+    { text: 'Suites Management', to: '/suites', icon: <SaveIcon /> },
   ];
 
   return (
