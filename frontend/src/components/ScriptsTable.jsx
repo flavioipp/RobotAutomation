@@ -38,7 +38,6 @@ export default function ScriptsTable({ onLoadingChange }) {
   const [expandedDirs, setExpandedDirs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [sortBy, setSortBy] = useState({ key: 'filename', dir: 'asc' });
   const [previewContent, setPreviewContent] = useState('');
   const [previewScript, setPreviewScript] = useState(null);
   const [page, setPage] = useState(0);
@@ -58,6 +57,8 @@ export default function ScriptsTable({ onLoadingChange }) {
       setLoading(false);
     }
     loadScripts();
+    // we intentionally run this only on mount; other effects handle repo/dir changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // notify parent about loading state changes (if callback provided)
@@ -111,39 +112,33 @@ export default function ScriptsTable({ onLoadingChange }) {
       setLoading(false);
     }
     afterDirChange();
-  }, [selectedDir]);
+  }, [selectedDir, selectedRepo]);
 
   // helper: filtered + sorted data
   const processedData = React.useMemo(() => {
+    const localSortBy = { key: 'filename', dir: 'asc' };
     let list = (data || []).slice();
     if (query && query.trim()) {
       const q = query.toLowerCase();
-  list = list.filter(s => (s.filename || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q) || (s.topology || '').toLowerCase().includes(q) || (s.author || '').toLowerCase().includes(q));
+      list = list.filter(s => (s.filename || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q) || (s.topology || '').toLowerCase().includes(q) || (s.author || '').toLowerCase().includes(q));
     }
     const cmp = (a, b) => {
-      const ka = (a[sortBy.key] || '').toString().toLowerCase();
-      const kb = (b[sortBy.key] || '').toString().toLowerCase();
-      if (ka < kb) return sortBy.dir === 'asc' ? -1 : 1;
-      if (ka > kb) return sortBy.dir === 'asc' ? 1 : -1;
+      const ka = (a[localSortBy.key] || '').toString().toLowerCase();
+      const kb = (b[localSortBy.key] || '').toString().toLowerCase();
+      if (ka < kb) return localSortBy.dir === 'asc' ? -1 : 1;
+      if (ka > kb) return localSortBy.dir === 'asc' ? 1 : -1;
       return 0;
     };
     list.sort(cmp);
     return list;
-  }, [data, query, sortBy]);
+  }, [data, query]);
 
   // reset page when data set changes
   React.useEffect(() => {
     setPage(0);
   }, [processedData.length, selectedRepo, selectedDir, query]);
 
-  const handleRequestSort = (key) => {
-    setSortBy(prev => {
-      if (prev.key === key) {
-        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key, dir: 'asc' };
-    });
-  };
+  // handleRequestSort removed (not used)
 
   const openPreview = async (script) => {
     setPreviewScript(script);
@@ -156,10 +151,7 @@ export default function ScriptsTable({ onLoadingChange }) {
     }
   };
 
-  const closePreview = () => {
-    setPreviewContent('');
-    setPreviewScript(null);
-  };
+  // closePreview removed (not used)
 
   // Build a nested tree from the flat `dirs` list (memoized hook at top-level)
   const tree = React.useMemo(() => {

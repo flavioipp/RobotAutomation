@@ -26,13 +26,12 @@ export default function ScriptBrowser() {
   const { showToast } = useToast();
   const [badgeAnimate, setBadgeAnimate] = useState(false);
   
-
   useEffect(() => {
     async function loadRepos() {
       try {
         const r = await fsGetRepos();
         setRepos(r);
-        // prefill selected repo from localStorage if available and valid
+  // prefill selected repo from localStorage if available and valid
         try {
           const last = localStorage.getItem('last_repo');
           if (last && r.includes(last)) {
@@ -43,14 +42,14 @@ export default function ScriptBrowser() {
           }
         } catch (err) {
           // ignore localStorage errors
-          console.warn('Could not read last_repo from localStorage', err);
         }
       } catch (e) {
         console.error('Could not load repos', e);
+        showToast('Could not load repositories', { type: 'error' });
       }
     }
     loadRepos();
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     async function loadEntries() {
@@ -58,8 +57,8 @@ export default function ScriptBrowser() {
       setLoading(true);
       try {
         const list = await fsList(selectedRepo, path || '.');
-        // backend now filters hidden files/directories (any path segment starting with '.')
-  // hide the 'suites' directory from the main browser view (we manage suites in a dedicated page)
+    // backend now filters hidden files/directories (any path segment starting with '.')
+    // hide the 'suites' directory from the main browser view (we manage suites in a dedicated page)
   const filtered = list.filter(ent => !(ent.is_dir && ent.name === 'suites'));
   setEntries(filtered);
         // fetch metadata for all files in the directory using batch endpoint
@@ -67,19 +66,19 @@ export default function ScriptBrowser() {
           const metaMap = await fsGetMetaDir(selectedRepo, path || '.');
           setMetadata(metaMap || {});
         } catch (err) {
-          console.warn('Could not fetch metadata for directory', err);
           setMetadata({});
         }
         // saved suites are handled on the dedicated Saved Suites page
       } catch (e) {
         console.error('Could not list path', e);
+        showToast('Could not list directory', { type: 'error' });
         setEntries([]);
       } finally {
         setLoading(false);
       }
     }
     loadEntries();
-  }, [selectedRepo, path]);
+  }, [selectedRepo, path, showToast]);
 
   useEffect(() => {
     async function loadFile() {
@@ -90,13 +89,14 @@ export default function ScriptBrowser() {
         setFileContent(data.content || '');
       } catch (e) {
         console.error('Could not load file', e);
+        showToast('Could not load file', { type: 'error' });
         setFileContent('Could not load file');
       } finally {
         setLoading(false);
       }
     }
     loadFile();
-  }, [previewFile, selectedRepo]);
+  }, [previewFile, selectedRepo, showToast]);
 
   const enterDir = (entry) => {
     if (!entry.is_dir) return;

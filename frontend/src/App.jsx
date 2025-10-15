@@ -34,6 +34,22 @@ function App() {
 
   const navigate = useNavigate();
 
+  // read sidebar width from CSS var so main content moves when sidebar opens/closes
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  useEffect(() => {
+    const read = () => {
+      try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '240px';
+        setSidebarWidth(parseInt(v.replace('px','').trim(), 10) || 240);
+      } catch (e) {}
+    };
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    window.addEventListener('resize', read);
+    return () => { mo.disconnect(); window.removeEventListener('resize', read); };
+  }, []);
+
   if (!token) {
     return <Login onLogin={(t) => { setAuthToken(t); setToken(t); navigate('/'); }} />;
   }
@@ -65,8 +81,8 @@ function App() {
     <div className="app-root">
       <CssBaseline />
 
-      <Sidebar username={username} onLogout={() => setConfirmOpen(true)} />
-      <main className="app-content" role="main" style={{ marginLeft: 240 }}>
+  <Sidebar username={username} onLogout={() => setConfirmOpen(true)} />
+  <main className="app-content" role="main" style={{ marginLeft: sidebarWidth, transition: 'margin-left 160ms ease' }}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/scripts" element={<ScriptsTable onLoadingChange={setAppLoading} />} />
@@ -76,7 +92,7 @@ function App() {
 
         {/* Overlay loader when content is visible but ScriptsTable is loading */}
         {appLoading && (
-          <div style={{ position: 'absolute', left: 240, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', left: sidebarWidth, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <CircularProgress />
           </div>
         )}

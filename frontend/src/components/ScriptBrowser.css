@@ -1,3 +1,4 @@
+/* root sizing for the script browser area */
 .script-browser-root { min-height: calc(100vh - (var(--app-header-height) + var(--app-footer-height))); }
 
 /* Ensure design tokens are available */
@@ -30,8 +31,9 @@
 
 /* Top repo row and bottom multi-column layout */
 .repo-top {
-	max-width: var(--app-max-width);
-	margin: 18px auto;
+	/* avoid centering so content shifts with main when sidebar toggles */
+	width: 100%;
+	padding: 12px 18px;
 	display:flex;
 	justify-content:space-between;
 	align-items:center;
@@ -42,7 +44,7 @@
 .repo-list-horizontal .repo-btn { padding:8px 12px; border-radius:999px; border:1px solid rgba(37,99,235,0.12); background:transparent; cursor:pointer; color:var(--sb-accent); font-weight:600; transition: all .15s ease; }
 .repo-list-horizontal .repo-btn.selected { background: linear-gradient(90deg, rgba(37,99,235,0.09), rgba(37,99,235,0.04)); box-shadow: var(--sb-shadow); transform: translateY(-2px); }
 
-.bottom-grid { max-width: var(--app-max-width); margin: 0 auto; display:grid; gap:20px; align-items:start; padding: 0 18px 40px; }
+.bottom-grid { width: 100%; display:grid; gap:20px; align-items:start; padding: 0 18px 40px; }
 .bottom-grid.preview-only { grid-template-columns: 1fr 480px; }
 .bottom-grid.cart-only { grid-template-columns: 1fr 460px; }
 .bottom-grid.preview-and-cart { grid-template-columns: 1fr 480px 460px; }
@@ -118,9 +120,9 @@
 }
 
 @media (max-width: 640px) {
-	.script-browser-root { padding: 12px; }
-	.meta-desc { max-width: 260px; }
-	.repo-top { flex-direction:column; align-items:flex-start; gap:8px; }
+    .script-browser-root { padding: 12px; }
+    .meta-desc { max-width: 260px; }
+    .repo-top { flex-direction:column; align-items:flex-start; gap:8px; }
 }
 
 /* Modal for viewing .robot content */
@@ -171,31 +173,10 @@
 }
 
 @media (max-width: 600px) {
-	.script-browser-root { padding: 12px; }
-	.meta-desc { max-width: 260px; }
+    .script-browser-root { padding: 12px; }
+    .meta-desc { max-width: 260px; }
 }
 
-/* Modal for viewing .robot content */
-.modal-overlay {
-	position: fixed;
-	inset: 0;
-	background: rgba(0,0,0,0.5);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1200;
-}
-.modal {
-	background: #fff;
-	max-width: 900px;
-	width: 90%;
-	max-height: 80vh;
-	border-radius: 8px;
-	overflow: hidden;
-	box-shadow: 0 6px 30px rgba(2,6,23,0.3);
-	display: flex;
-	flex-direction: column;
-}
 .modal-header {
 	padding: 12px 16px;
 	border-bottom: 1px solid #eee;
