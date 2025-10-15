@@ -100,7 +100,7 @@ function App() {
       case '/scripts':
         return { title: 'Scripts', subtitle: 'Manage and run your scripts' };
       case '/browser':
-        return { title: 'Script Browser', subtitle: 'Preview files and create suites' };
+        return { title: 'TestCase Browser', subtitle: 'Preview Testcases and create suites' };
       case '/suites':
         return { title: 'Saved Suites', subtitle: 'Your saved test suites' };
       case '/':
@@ -136,10 +136,17 @@ function App() {
               <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
                 {pageMeta.title}
               </Typography>
-              {pageMeta.subtitle && (
-                <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
-                  {pageMeta.subtitle}
+              {/* if on the Script Browser page and no repo selected, show an explicit prompt in the AppBar */}
+              {(location.pathname === '/browser' && !browserSelectedRepo) ? (
+                <Typography variant="caption" component="div" sx={{ opacity: 0.95 }}>
+                  Please Select a TestCase repository from the dropdown
                 </Typography>
+              ) : (
+                pageMeta.subtitle && (
+                  <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
+                    {pageMeta.subtitle}
+                  </Typography>
+                )
               )}
             </Box>
 

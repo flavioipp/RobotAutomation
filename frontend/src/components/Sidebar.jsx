@@ -49,7 +49,7 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
         },
       }}
     >
-      <Toolbar sx={{ minHeight: 64, display: 'flex', alignItems: 'center', justifyContent: open ? 'space-between' : 'center', px: 1 }}>
+      <Toolbar sx={{ minHeight: 64, display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', px: 1 }}>
         {open ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1 }}>
             <Typography variant="h6" noWrap sx={{ fontWeight: 700, letterSpacing: 1 }}>
@@ -61,15 +61,6 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
             <Box />
           </Tooltip>
         )}
-
-        {/* toggle moved back to the top toolbar */}
-        <Box sx={{ display: 'flex', alignItems: 'center', pr: 1 }}>
-          <Tooltip title={open ? 'Collapse sidebar' : 'Open sidebar'}>
-            <IconButton onClick={() => setOpen(v => !v)} sx={{ color: 'inherit' }} size="small" aria-label={open ? 'collapse-sidebar' : 'open-sidebar'}>
-              {open ? <MenuOpenIcon /> : <MenuIcon />}
-            </IconButton>
-          </Tooltip>
-        </Box>
       </Toolbar>
       <Divider sx={{ bgcolor: 'rgba(255,255,255,0.12)' }} />
       <List sx={{ flex: 1 }}>
@@ -126,7 +117,14 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
           )}
         </Box>
 
-        {/* previously toggle was centered here; now restored to top toolbar */}
+        {/* center the toggle below the user block so it's visible when collapsed */}
+        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: 1 }}>
+          <Tooltip title={open ? 'Collapse sidebar' : 'Open sidebar'} placement="top">
+            <IconButton onClick={() => setOpen(v => !v)} sx={{ color: 'inherit', bgcolor: 'rgba(255,255,255,0.04)' }} size="small" aria-label={open ? 'collapse-sidebar' : 'open-sidebar'}>
+              {open ? <MenuOpenIcon /> : <MenuIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
     </Drawer>
   );

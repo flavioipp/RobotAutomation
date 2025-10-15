@@ -161,15 +161,15 @@ export default function ScriptBrowser(props = {}) {
 
   return (
     <div className="script-browser-root" style={{ padding: 24 }}>
-      <div className="repo-top">
-        <h3 style={{ margin: 0 }}>{selectedRepo ? selectedRepo : 'Select a repository from the AppBar'}</h3>
-      </div>
+      {/*<div className="repo-top">
+        <h3 style={{ margin: 0 }}>{selectedRepo || ''}</h3>
+      </div>*/}
 
   <div className={`bottom-grid ${gridClass}`}>
         <section className="browser-main">
           <div className="browser-header">
             <div>
-              <h3 style={{ margin: 0 }}>{selectedRepo ? 'TestCase Browser' : 'Select a repository'}</h3>
+              {/* <h3 style={{ margin: 0 }}>{selectedRepo ? 'Script Browser' : ''}</h3> */}
               <div className="subtle">{loading ? 'Loading...' : path}</div>
             </div>
             <div className="browser-actions">
