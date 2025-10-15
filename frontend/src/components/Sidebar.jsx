@@ -6,6 +6,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import SaveIcon from '@mui/icons-material/Save';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import MenuIcon from '@mui/icons-material/Menu';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { Link, useLocation } from 'react-router-dom';
 import { APP_NAME } from '../constants';
 
@@ -60,9 +61,15 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
             <Box />
           </Tooltip>
         )}
-        <IconButton onClick={() => setOpen(v => !v)} sx={{ color: 'inherit' }} size="small">
-          {open ? <MenuOpenIcon /> : <MenuIcon />}
-        </IconButton>
+
+        {/* toggle moved back to the top toolbar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', pr: 1 }}>
+          <Tooltip title={open ? 'Collapse sidebar' : 'Open sidebar'}>
+            <IconButton onClick={() => setOpen(v => !v)} sx={{ color: 'inherit' }} size="small" aria-label={open ? 'collapse-sidebar' : 'open-sidebar'}>
+              {open ? <MenuOpenIcon /> : <MenuIcon />}
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Toolbar>
       <Divider sx={{ bgcolor: 'rgba(255,255,255,0.12)' }} />
       <List sx={{ flex: 1 }}>
@@ -94,26 +101,32 @@ const Sidebar = ({ drawerWidth = 240, username = null, onLogout = null }) => {
         ))}
       </List>
 
-      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.12)' }} />
+      {/* stronger visual separation before footer */}
+      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.18)', my: 0 }} />
+
       {/* User area: single-line when open, minimal when closed */}
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1, mb: 2, justifyContent: open ? 'space-between' : 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1, flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
           <Avatar sx={{ width: 40, height: 40, bgcolor: 'secondary.main', fontSize: 20 }}>
             {username ? username.charAt(0).toUpperCase() : '?'}
           </Avatar>
           {open && (
             <Typography variant="body2" sx={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username || 'Unknown'}</Typography>
           )}
+          {/* spacer to push actions to the right when open */}
+          <Box sx={{ flex: 1 }} />
+          {open ? (
+            <Button size="small" variant="outlined" color="inherit" sx={{ borderColor: 'rgba(255,255,255,0.2)' }} onClick={onLogout} startIcon={<LogoutIcon />}>Logout</Button>
+          ) : (
+            <Tooltip title="Logout" placement="right">
+              <IconButton size="small" onClick={onLogout} sx={{ color: 'inherit' }}>
+                <LogoutIcon />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
-        {open ? (
-          <Button size="small" variant="outlined" color="inherit" sx={{ ml: 1, borderColor: 'rgba(255,255,255,0.2)' }} onClick={onLogout}>Logout</Button>
-        ) : (
-          <Tooltip title="Logout" placement="right">
-            <IconButton size="small" onClick={onLogout} sx={{ color: 'inherit' }}>
-              <MenuIcon />
-            </IconButton>
-          </Tooltip>
-        )}
+
+        {/* previously toggle was centered here; now restored to top toolbar */}
       </Box>
     </Drawer>
   );

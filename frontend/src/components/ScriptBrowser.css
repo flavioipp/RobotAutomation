@@ -26,7 +26,7 @@
 }
 .repo-list-horizontal { display:flex; gap:8px; flex-wrap:wrap; }
 .repo-list-horizontal .repo-btn { padding:6px 10px; border-radius:6px; border:1px solid #e6e6e6; background:transparent; cursor:pointer; }
-.script-browser-root { min-height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); background: var(--sb-bg); color: var(--sb-foreground); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+.script-browser-root { min-height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); height: calc(100vh - (var(--app-header-height, 64px) + var(--app-footer-height, 0px))); background: var(--sb-bg); color: var(--sb-foreground); font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; overflow: auto; -webkit-overflow-scrolling: touch; }
 .script-browser-root h2, .script-browser-root h3{ margin:0; }
 
 /* Top repo row and bottom multi-column layout */
