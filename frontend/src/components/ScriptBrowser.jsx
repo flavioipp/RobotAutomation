@@ -143,7 +143,7 @@ export default function ScriptBrowser(props = {}) {
     if (parentSetCartCount) {
       try { parentSetCartCount(cart.length); } catch (e) {}
     }
-  }, [cart.length]);
+  }, [cart.length, parentSetCartCount]);
 
   return (
     <div className="script-browser-root" style={{ padding: 24 }}>

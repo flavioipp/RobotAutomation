@@ -6,6 +6,9 @@ import TextField from '@mui/material/TextField';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Alert from '@mui/material/Alert';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import './Login.css';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -30,18 +33,29 @@ export default function Login({ onLogin }) {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 80 }}>
-      <Card style={{ width: 420 }}>
+    <div className="login-root">
+      <Card className="login-card" elevation={8}>
         <CardContent>
-          <h2 style={{ marginTop: 0 }}>Login</h2>
-          <div style={{ marginBottom: 8, color: '#6b7280' }}>Please access to <strong>{APP_NAME}</strong> environment</div>
-          {error && <Alert severity="error" style={{ marginBottom: 12 }}>{error}</Alert>}
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <TextField label="Username" value={username} onChange={e => setUsername(e.target.value)} />
-              <TextField label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-              <Button variant="contained" type="submit" disabled={loading}>{loading ? '...':'Login'}</Button>
+          <div className="login-head">
+            <div className="logo">{APP_NAME.split(' ').map(s=>s[0]).join('')}</div>
+            <div className="title-block">
+              <h2>{APP_NAME} Environment</h2>
+              <div className="subtitle">Sign in to continue</div>
             </div>
+          </div>
+
+          {error && <Alert severity="error" className="login-alert">{error}</Alert>}
+
+          <form onSubmit={handleSubmit} className="login-form">
+            <TextField label="Username or email" value={username} onChange={e => setUsername(e.target.value)} fullWidth />
+            <TextField label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} fullWidth />
+
+            <div className="login-actions">
+              <FormControlLabel control={<Checkbox checked={false} />} label="Remember me" />
+              <a className="link" href="#">Forgot password?</a>
+            </div>
+
+            <Button variant="contained" type="submit" color="primary" size="large" fullWidth disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</Button>
           </form>
         </CardContent>
       </Card>

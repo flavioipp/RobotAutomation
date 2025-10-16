@@ -1,0 +1,42 @@
+/* Simple, modern login styling */
+.login-root {
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #0f1720 0%, #071129 60%);
+}
+.login-card {
+  width: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.login-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,#2563eb,#60a5fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+}
+.title-block h2 { margin: 0; }
+.subtitle { color: #6b7280; font-size: 13px; margin-top: 4px; }
+.login-alert { margin-bottom: 12px; }
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-actions { display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px; }
+.login-actions .link { color: #2563eb; text-decoration: none; font-size: 13px; }
+
+@media (max-width: 480px) {
+  .login-card { width: 100%; }
+}
