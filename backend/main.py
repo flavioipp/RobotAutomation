@@ -16,6 +16,8 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(git_router, prefix="/git", tags=["git"])
+# expose selected gitmanager routes also under /db for direct DB-related APIs
+app.include_router(git_router, prefix="/db", tags=["db"])
 
 @app.get("/")
 def root():

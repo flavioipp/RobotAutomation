@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 from backend.db.session import SessionLocal
 from backend.gitmanager.service import clone_or_pull
 from backend.db.models import Repo, Script
+from backend.db import t_models as tmodels
 from pathlib import Path
 import os
 from backend.core.config import settings
+from backend.core.security import get_username_from_token
+from fastapi import Query
 from jose import jwt, JWTError
 import re
 import json
@@ -215,6 +219,48 @@ def fs_get_config():
     if base.exists():
         repos = [p.name for p in sorted(base.iterdir()) if p.is_dir()]
     return { 'script_repo_name': configured, 'available_repos': repos }
+
+
+@router.get('/benches')
+def list_benches_db(
+    limit: int = Query(50, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Authenticated, paginated benches listing under /db/benches.
+
+    Query parameters:
+    - limit: number of rows to return (default 50, max 1000)
+    - offset: row offset for pagination
+    Requires a Bearer token in Authorization header.
+    Returns JSON: { items: [...], limit, offset, total }
+    """
+    try:
+        # Use ORM models for T_EQUIPMENT with optional joined brand info
+        q = db.query(tmodels.TEquipment).options(joinedload(tmodels.TEquipment.brand))
+        total = q.count()
+        items = q.offset(offset).limit(limit).all()
+
+        result_items = []
+        for e in items:
+            brand_name = None
+            try:
+                brand_name = e.brand.brand_name if e.brand else None
+            except Exception:
+                brand_name = None
+            result_items.append({
+                'id': e.id_equipment,
+                'name': e.name,
+                'brand_id': e.T_BRAND_id_brand,
+                'brand_name': brand_name
+            })
+
+        return {'items': result_items, 'limit': limit, 'offset': offset, 'total': total}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not query benches (ORM): {e}")
 
 
 class CheckoutPayload(BaseModel):

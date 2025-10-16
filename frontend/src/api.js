@@ -81,6 +81,16 @@ export async function fsCheckout(branch) {
   return response.data;
 }
 
+export async function getBenches() {
+  const response = await axios.get(`${API_BASE_URL}/git/benches`);
+  return response.data;
+}
+
+export async function getBenchesPage(limit = 50, offset = 0) {
+  const response = await axios.get(`${API_BASE_URL}/db/benches`, { params: { limit, offset } });
+  return response.data; // { items, limit, offset, total }
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });

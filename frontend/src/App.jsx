@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import ScriptsTable from "./components/ScriptsTable";
 import ScriptBrowser from "./components/ScriptBrowser";
 import SavedSuites from './pages/SavedSuites';
+import Benches from './pages/Benches';
 import Dashboard from './components/Dashboard.jsx';
 import Sidebar from './components/Sidebar';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -108,6 +109,8 @@ function App() {
         return { title: 'TestCase Browser', subtitle: 'Preview Testcases and create suites' };
       case '/suites':
         return { title: 'Suites Management', subtitle: 'Your saved test suites' };
+      case '/benches':
+        return { title: 'Benches', subtitle: 'Devices Under Test' };
       case '/':
       default:
         return { title: 'Dashboard', subtitle: 'Overview and quick actions' };
@@ -261,6 +264,7 @@ function App() {
             resetKey={browserResetKey}
           />} />
           <Route path="/suites" element={<SavedSuites />} />
+          <Route path="/benches" element={<Benches />} />
         </Routes>
 
         {/* Overlay loader when content is visible but ScriptsTable is loading */}

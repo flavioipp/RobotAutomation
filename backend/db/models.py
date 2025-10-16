@@ -38,3 +38,6 @@ class Script(Base):
     last_commit = Column(String(40))
 
     repo = relationship("Repo", back_populates="scripts")
+
+
+from . import t_models  # generated T_* models are kept in t_models.py

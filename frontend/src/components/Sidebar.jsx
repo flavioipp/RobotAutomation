@@ -3,6 +3,7 @@ import { Drawer, Toolbar, List, ListItemButton, ListItemIcon, ListItemText, Divi
 import HomeIcon from '@mui/icons-material/Home';
 import DescriptionIcon from '@mui/icons-material/Description';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import ImportantDevicesIcon from '@mui/icons-material/ImportantDevices';
 import SaveIcon from '@mui/icons-material/Save';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -29,6 +30,7 @@ const Sidebar = ({ drawerWidth = 280, username = null, onLogout = null }) => {
     { text: 'Scripts', to: '/scripts', icon: <DescriptionIcon /> },
     { text: 'Script Browser', to: '/browser', icon: <FolderOpenIcon /> },
     { text: 'Suites Management', to: '/suites', icon: <SaveIcon /> },
+  { text: 'Benches', to: '/benches', icon: <ImportantDevicesIcon /> },
   ];
 
   return (
