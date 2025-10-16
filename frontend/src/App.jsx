@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ToastProvider } from './components/ToastContext';
+// ToastProvider is mounted at the root in index.js
 import ScriptsTable from "./components/ScriptsTable";
 import ScriptBrowser from "./components/ScriptBrowser";
 import SavedSuites from './pages/SavedSuites';
@@ -23,10 +23,15 @@ import { useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import InputBase from '@mui/material/InputBase';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Tooltip from '@mui/material/Tooltip';
 import Badge from '@mui/material/Badge';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import { useToast } from './components/ToastContext';
+import { fsGetConfig, fsCheckout } from './api';
 
 function App() {
   const [token, setToken] = useState(null);
@@ -118,17 +123,34 @@ function App() {
   const [browserFilterText, setBrowserFilterText] = useState('');
   const [browserCartCount, setBrowserCartCount] = useState(0);
   const [browserCartVisible, setBrowserCartVisible] = useState(false);
+  const [branchToCheckout, setBranchToCheckout] = useState('main');
+  const [browserResetKey, setBrowserResetKey] = useState(0);
+  const { showToast } = useToast();
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cfg = await fsGetConfig();
+        if (cfg) {
+          if (cfg.available_repos) setBrowserRepos(cfg.available_repos || []);
+          if (cfg.script_repo_name) setBrowserSelectedRepo(cfg.script_repo_name);
+        }
+      } catch (e) {
+        console.warn('Could not fetch fs config', e);
+      }
+    })();
+  }, []);
 
   if (!token) {
     return <Login onLogin={(t) => { setAuthToken(t); setToken(t); navigate('/'); }} />;
   }
 
   return (
-    <ToastProvider>
-      <div className="app-root">
-        <CssBaseline />
+    <div className="app-root">
+      <CssBaseline />
 
-        <Sidebar username={username} onLogout={() => setConfirmOpen(true)} />
+      <Sidebar username={username} onLogout={() => setConfirmOpen(true)} />
 
         <AppBar position="fixed" elevation={2} sx={{ left: sidebarWidth, width: `calc(100% - ${sidebarWidth})`, transition: 'left 160ms ease, width 160ms ease', zIndex: 1400, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
           <Toolbar sx={{ minHeight: appBarHeight, display: 'flex', alignItems: 'center', justifyContent: 'space-between', pl: 3, pr: 2 }}>
@@ -137,27 +159,81 @@ function App() {
                 {pageMeta.title}
               </Typography>
               {/* if on the Script Browser page and no repo selected, show an explicit prompt in the AppBar */}
-              {(location.pathname === '/browser' && !browserSelectedRepo) ? (
-                <Typography variant="caption" component="div" sx={{ opacity: 0.95 }}>
-                  Please Select a TestCase repository from the dropdown
+              {pageMeta.subtitle && (
+                <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
+                  {pageMeta.subtitle}
                 </Typography>
-              ) : (
-                pageMeta.subtitle && (
-                  <Typography variant="caption" component="div" sx={{ opacity: 0.9 }}>
-                    {pageMeta.subtitle}
-                  </Typography>
-                )
               )}
             </Box>
 
             {/* when on Script Browser page, show repo selector, search and cart toggle in AppBar */}
             {location.pathname === '/browser' && (
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                <Select size="small" value={browserSelectedRepo || ''} onChange={(e) => setBrowserSelectedRepo(e.target.value)} sx={{ minWidth: 140, bgcolor: 'background.paper' }}>
-                  <MenuItem value="">Select repo</MenuItem>
-                  {browserRepos.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                </Select>
-                <InputBase placeholder="Filter files..." value={browserFilterText} onChange={(e) => setBrowserFilterText(e.target.value)} sx={{ bgcolor: 'background.paper', px: 1, py: 0.5, borderRadius: 1, minWidth: 200 }} />
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                {/* show configured script repo name (selection disabled) */}
+                <Box sx={{ px: 1, py: 0.5, borderRadius: 1, minWidth: 10 }}>
+                  <h5>{'Branch' || 'No branch selected'}</h5>
+                </Box>
+
+                {/* Branch group: TextField with adornment + checkout button */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 0.5, py: 0.25, borderRadius: 1, border: '1px solid rgba(255,255,255,0.12)' }}>
+                  <TextField
+                    size="small"
+                    variant="standard"
+                    value={branchToCheckout}
+                    onChange={(e) => setBranchToCheckout(e.target.value)}
+                    placeholder="branch"
+                    aria-label="branch-name"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CallSplitIcon sx={{ opacity: 0.9, fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                      disableUnderline: true,
+                    }}
+                    sx={{
+                      input: { color: 'inherit', px: 1 },
+                      minWidth: 160,
+                    }}
+                  />
+                  <Tooltip title="Checkout branch" arrow>
+                    <span>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="secondary"
+                        startIcon={!checkoutLoading ? <CallSplitIcon /> : null}
+                        aria-label="checkout-branch"
+                        disabled={checkoutLoading}
+                        onClick={async () => {
+                          if (!branchToCheckout) return showToast('Enter a branch name', { type: 'warning' });
+                          setCheckoutLoading(true);
+                          try {
+                            await fsCheckout(branchToCheckout);
+                            // refresh scripts by briefly toggling repo state and signal browser to reset to root
+                            const repo = browserSelectedRepo;
+                            setBrowserSelectedRepo(null);
+                            setTimeout(() => { setBrowserSelectedRepo(repo); setBrowserResetKey(k => k + 1); }, 80);
+                            showToast(`Checked out branch ${branchToCheckout}`, { type: 'success' });
+                          } catch (e) {
+                            console.error('Checkout failed', e);
+                            showToast('Checkout failed: ' + (e.response?.data?.detail || e.message), { type: 'error' });
+                          } finally {
+                            setCheckoutLoading(false);
+                          }
+                        }}
+                        sx={{ ml: 0.5, textTransform: 'none' }}
+                      >
+                        {checkoutLoading ? <CircularProgress size={16} color="inherit" /> : 'Checkout'}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Box>
+
+                <Divider orientation="vertical" flexItem sx={{ mx: 1.5, bgcolor: 'rgba(255,255,255,0.12)' }} />
+
+                <InputBase placeholder="Filter files..." value={browserFilterText} onChange={(e) => setBrowserFilterText(e.target.value)} sx={{ bgcolor: 'background.paper', px: 1, py: 0.5, borderRadius: 1, minWidth: 260 }} />
+
                 <IconButton color="inherit" onClick={() => setBrowserCartVisible(v => !v)}>
                   <Badge badgeContent={browserCartCount} color="secondary">
                     <ShoppingCartIcon />
@@ -182,6 +258,7 @@ function App() {
             setCartCount={setBrowserCartCount}
             cartVisible={browserCartVisible}
             setCartVisible={setBrowserCartVisible}
+            resetKey={browserResetKey}
           />} />
           <Route path="/suites" element={<SavedSuites />} />
         </Routes>
@@ -207,7 +284,6 @@ function App() {
         </DialogActions>
       </Dialog>
     </div>
-    </ToastProvider>
   );
 }
 

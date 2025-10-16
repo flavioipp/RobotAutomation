@@ -23,7 +23,44 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # GIT SETTINGS
-    REPOS_BASE_PATH = '/mnt/c/Users/ippolf/Documents/GitHub'
-    #REPOS_BASE_PATH = os.path.join(BASE_DIR, "..", "repos")  # percorso assoluto a ./repos
-    #os.makedirs(REPOS_BASE_PATH, exist_ok=True)
+    # Make the base paths configurable via environment variables to avoid hard-coded OS-specific paths.
+    # If not provided, default to a `repos` directory next to the project root and a `working` directory.
+    def _clean_env(v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        # remove surrounding single or double quotes if present
+        if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
+            s = s[1:-1].strip()
+        return s
+
+    REPOS_BASE_PATH = _clean_env(os.getenv('REPOS_BASE_PATH')) or str(pathlib.Path(BASE_DIR).parent.joinpath('repos'))
+    # ensure directory exists (no-op if it already exists)
+    try:
+        pathlib.Path(REPOS_BASE_PATH).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # ignore creation errors here; the runtime will still attempt operations and fail if path is invalid
+        pass
+
+    # WORKING PATH SETTINGS for Robot Framework execution
+    WORKING_BASE_PATH = _clean_env(os.getenv('WORKING_BASE_PATH')) or str(pathlib.Path(BASE_DIR).parent.joinpath('working'))
+    try:
+        pathlib.Path(WORKING_BASE_PATH).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    SUITES_FOLDER = 'suites'
+    # Optional: default repository used by the Script Browser when only one repo is intended
+    SCRIPT_REPO_NAME = _clean_env(os.getenv('SCRIPT_REPO_NAME')) or None
 settings = Settings()
+# Log the resolved paths so they are obvious at startup
+import logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    # configure a simple handler for cases where the app didn't configure logging yet
+    logging.basicConfig(level=logging.INFO)
+
+logger.info("Config: REPOS_BASE_PATH=%s", settings.REPOS_BASE_PATH)
+logger.info("Config: WORKING_BASE_PATH=%s", settings.WORKING_BASE_PATH)
+logger.info("Config: SUITES_FOLDER=%s", settings.SUITES_FOLDER)
+logger.info("Config: SCRIPT_REPO_NAME=%s", settings.SCRIPT_REPO_NAME)

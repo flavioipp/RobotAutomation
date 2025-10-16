@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from backend.db.session import SessionLocal
 from backend.gitmanager.service import clone_or_pull
@@ -6,10 +6,12 @@ from backend.db.models import Repo, Script
 from pathlib import Path
 import os
 from backend.core.config import settings
+from jose import jwt, JWTError
 import re
 import json
 from pydantic import BaseModel
 from typing import List
+from git import Repo as GitRepo, GitCommandError
 
 router = APIRouter()
 
@@ -170,6 +172,76 @@ def fs_list(repo: str, path: str = '.'):
     - repo: repository directory name under REPOS_BASE_PATH
     - path: relative path inside the repo (default '.')
     """
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo).resolve()
+    if not repo_dir.exists() or not repo_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Repo not found on disk")
+
+    target = (repo_dir / path).resolve()
+    # ensure target is inside repo_dir
+    try:
+        target.relative_to(repo_dir)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="Path not found")
+
+    entries = []
+    if target.is_dir():
+        for child in sorted(target.iterdir()):
+            # skip hidden files/dirs (any path segment starting with '.')
+            if _is_hidden(child, repo_dir):
+                continue
+            # hide repository-internal 'suites' directories from filesystem listings
+            if child.is_dir() and child.name == settings.SUITES_FOLDER:
+                continue
+            entries.append({
+                "name": child.name,
+                "path": str(child.relative_to(repo_dir)),
+                "is_dir": child.is_dir()
+            })
+    else:
+        raise HTTPException(status_code=400, detail="Path is not a directory")
+
+    return entries
+
+@router.get('/fs/config')
+def fs_get_config():
+    """Return minimal filesystem config for frontend: configured SCRIPT_REPO_NAME and available repos."""
+    configured = settings.SCRIPT_REPO_NAME
+    base = Path(settings.REPOS_BASE_PATH)
+    repos = []
+    if base.exists():
+        repos = [p.name for p in sorted(base.iterdir()) if p.is_dir()]
+    return { 'script_repo_name': configured, 'available_repos': repos }
+
+
+class CheckoutPayload(BaseModel):
+    branch: str
+
+
+@router.post('/fs/checkout')
+def fs_checkout(payload: CheckoutPayload):
+    """Checkout the given branch in the configured script repo.
+
+    This operates on the repo specified by `settings.SCRIPT_REPO_NAME`.
+    """
+    repo_name = settings.SCRIPT_REPO_NAME
+    if not repo_name:
+        raise HTTPException(status_code=400, detail="No SCRIPT_REPO_NAME configured")
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo_name)
+    if not repo_dir.exists() or not repo_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Configured repo not found on disk")
+    try:
+        grepo = GitRepo(str(repo_dir))
+        grepo.git.checkout(payload.branch)
+    except GitCommandError as e:
+        raise HTTPException(status_code=500, detail=f"Git error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not checkout branch: {e}")
+    return { 'repo': repo_name, 'branch': payload.branch }
     base = Path(settings.REPOS_BASE_PATH)
     repo_dir = (base / repo).resolve()
     if not repo_dir.exists() or not repo_dir.is_dir():
@@ -433,8 +505,57 @@ class SuitePayload(BaseModel):
     files: List[str]
 
 
+def _extract_username_from_request(request: Request):
+    """Try to extract the username from an Authorization: Bearer <token> header.
+
+    Returns the username string on success or None if no valid token is present.
+    """
+    auth = None
+    if request is None:
+        return None
+    # headers are case-insensitive but FastAPI/Starlette exposes them lower-cased
+    auth = request.headers.get('authorization') or request.headers.get('Authorization')
+    if not auth:
+        return None
+    parts = auth.split()
+    if len(parts) != 2 or parts[0].lower() != 'bearer':
+        return None
+    token = parts[1]
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        username = payload.get('sub')
+        return username
+    except JWTError:
+        return None
+
+
+def _resolve_suites_dir(repo: str, request: Request):
+    """Resolve where suites should be stored/read for the given repo and request.
+
+    If a valid Authorization token with a 'sub' (username) is present, return
+    WORKING_BASE_PATH/<username>/<SUITES_FOLDER>. Otherwise, fall back to
+    the repository-local <repo>/suites directory (historic behavior).
+    """
+    base = Path(settings.REPOS_BASE_PATH)
+    repo_dir = (base / repo).resolve()
+    username = _extract_username_from_request(request)
+    if username:
+        # per-user working dir
+        working = Path(settings.WORKING_BASE_PATH)
+        per_user = (working / username / settings.SUITES_FOLDER).resolve()
+        try:
+            per_user.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # directory creation errors will surface later when writing files
+            pass
+        return per_user, repo_dir
+
+    # fallback to repository-local suites
+    return (repo_dir / settings.SUITES_FOLDER), repo_dir
+
+
 @router.post("/fs/save-suite")
-def fs_save_suite(payload: SuitePayload):
+def fs_save_suite(payload: SuitePayload, request: Request):
     repo = payload.repo
     name = payload.name
     files = payload.files
@@ -469,7 +590,7 @@ def fs_save_suite(payload: SuitePayload):
             raise HTTPException(status_code=404, detail=f"File '{f}' not found")
         clean_files.append(str(target.relative_to(repo_dir)))
 
-    suites_dir = repo_dir / 'suites'
+    suites_dir, _repo_dir = _resolve_suites_dir(repo, request)
     try:
         suites_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
@@ -512,18 +633,25 @@ def fs_save_suite(payload: SuitePayload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write robot suite file: {e}")
 
-    return {"path": str(out_path.relative_to(repo_dir)), "manifest": manifest, "robot": str(out_robot.relative_to(repo_dir))}
+    # When suites are stored outside the repo_dir (working path), returning
+    # a relative path to the repo would fail. Attempt relative-to-repo first,
+    # otherwise return the absolute path.
+    try:
+        out_path_rel = str(out_path.relative_to(repo_dir))
+    except Exception:
+        out_path_rel = str(out_path)
+    try:
+        out_robot_rel = str(out_robot.relative_to(repo_dir))
+    except Exception:
+        out_robot_rel = str(out_robot)
+
+    return {"path": out_path_rel, "manifest": manifest, "robot": out_robot_rel}
 
 
 @router.get("/fs/list-suites")
-def fs_list_suites(repo: str):
+def fs_list_suites(repo: str, request: Request):
     """List suite manifests under repo/suites/*.json and return their content plus robot path if present."""
-    base = Path(settings.REPOS_BASE_PATH)
-    repo_dir = (base / repo).resolve()
-    if not repo_dir.exists() or not repo_dir.is_dir():
-        raise HTTPException(status_code=404, detail="Repo not found on disk")
-
-    suites_dir = repo_dir / 'suites'
+    suites_dir, repo_dir = _resolve_suites_dir(repo, request)
     if not suites_dir.exists() or not suites_dir.is_dir():
         return []
 
@@ -539,10 +667,17 @@ def fs_list_suites(repo: str):
         robot_path = None
         robot_candidate = suites_dir / (f.stem + '.robot')
         if robot_candidate.exists() and robot_candidate.is_file():
-            robot_path = str(robot_candidate.relative_to(repo_dir))
+            try:
+                robot_path = str(robot_candidate.relative_to(repo_dir))
+            except Exception:
+                robot_path = str(robot_candidate)
+        try:
+            fpath = str(f.relative_to(repo_dir))
+        except Exception:
+            fpath = str(f)
         results.append({
             'name': f.stem,
-            'path': str(f.relative_to(repo_dir)),
+            'path': fpath,
             'manifest': manifest,
             'robot': robot_path
         })
@@ -551,19 +686,15 @@ def fs_list_suites(repo: str):
 
 
 @router.get("/fs/suite-file")
-def fs_get_suite_file(repo: str, name: str):
+def fs_get_suite_file(repo: str, name: str, request: Request):
     """Return the content of the generated .robot file for a suite name under repo/suites/<name>.robot"""
     base = Path(settings.REPOS_BASE_PATH)
     repo_dir = (base / repo).resolve()
     if not repo_dir.exists() or not repo_dir.is_dir():
         raise HTTPException(status_code=404, detail="Repo not found on disk")
 
-    suites_dir = repo_dir / 'suites'
+    suites_dir, _repo_dir = _resolve_suites_dir(repo, request)
     robot_path = suites_dir / f"{name}.robot"
-    try:
-        robot_path.relative_to(repo_dir)
-    except Exception:
-        raise HTTPException(status_code=403, detail="Access denied")
 
     if not robot_path.exists() or not robot_path.is_file():
         raise HTTPException(status_code=404, detail="Robot file not found")
@@ -573,4 +704,9 @@ def fs_get_suite_file(repo: str, name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not read robot file: {e}")
 
-    return {"path": str(robot_path.relative_to(repo_dir)), "content": content}
+    try:
+        robot_rel = str(robot_path.relative_to(repo_dir))
+    except Exception:
+        robot_rel = str(robot_path)
+
+    return {"path": robot_rel, "content": content}

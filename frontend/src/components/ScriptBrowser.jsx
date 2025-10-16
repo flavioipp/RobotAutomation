@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from './ToastContext';
 import './ScriptBrowser.css';
-import { fsGetRepos, fsList, fsGetFile, fsGetMetaDir, fsSaveSuite } from '../api';
+import { fsList, fsGetFile, fsGetMetaDir, fsSaveSuite } from '../api';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -9,7 +9,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 export default function ScriptBrowser(props = {}) {
   // Destructure props so hooks can reference explicit dependencies
-  const { repos: propsRepos, selectedRepo: propsSelectedRepo, filterText: propsFilterText, cartVisible: propsCartVisible, setRepos: parentSetRepos, setSelectedRepo: parentSetSelectedRepo, setCartCount: parentSetCartCount } = props;
+  const { repos: propsRepos, selectedRepo: propsSelectedRepo, filterText: propsFilterText, cartVisible: propsCartVisible, setRepos: parentSetRepos, setSelectedRepo: parentSetSelectedRepo, setCartCount: parentSetCartCount, resetKey } = props;
   const [, setRepos] = useState(propsRepos || []);
   const [selectedRepo, setSelectedRepo] = useState(propsSelectedRepo || null);
   const [path, setPath] = useState('.');
@@ -29,32 +29,9 @@ export default function ScriptBrowser(props = {}) {
   // badge animation state removed (was unused)
   
   useEffect(() => {
-    async function loadRepos() {
-      try {
-        const r = await fsGetRepos();
-        // update local state
-        setRepos(r);
-  // if parent provided a setter, update it too so AppBar can show repos
-  if (parentSetRepos) try { parentSetRepos(r); } catch (e) {}
-  // prefill selected repo from localStorage if available and valid
-        try {
-          const last = localStorage.getItem('last_repo');
-            if (last && r.includes(last)) {
-            setSelectedRepo(last);
-            if (parentSetSelectedRepo) try { parentSetSelectedRepo(last); } catch (e) {}
-            setPath('.');
-            setSelectedFile(null);
-            setPreviewFile(null);
-          }
-        } catch (err) {
-          // ignore localStorage errors
-        }
-      } catch (e) {
-        console.error('Could not load repos', e);
-        showToast('Could not load repositories', { type: 'error' });
-      }
-    }
-    loadRepos();
+    // ScriptBrowser now relies on parent App to provide the configured repo
+    // and the list of available repos. No local repo discovery or localStorage.
+    if (parentSetRepos) try { parentSetRepos([]); } catch (e) {}
   }, [showToast, parentSetRepos, parentSetSelectedRepo]);
 
   // sync incoming props to local state when parent controls them
@@ -91,6 +68,15 @@ export default function ScriptBrowser(props = {}) {
     }
     loadEntries();
   }, [selectedRepo, path, showToast]);
+
+  // whenever parent signals a reset (e.g. after branch checkout), go back to repo root
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    // reset to root
+    setPath('.');
+    setSelectedFile(null);
+    setPreviewFile(null);
+  }, [resetKey]);
 
   useEffect(() => {
     async function loadFile() {

@@ -69,6 +69,18 @@ export async function fsGetSuiteFile(repo, name) {
   return response.data;
 }
 
+// Return backend filesystem config (SCRIPT_REPO_NAME and available repos)
+export async function fsGetConfig() {
+  const response = await axios.get(`${API_BASE_URL}/git/fs/config`);
+  return response.data;
+}
+
+// Request backend to checkout a branch in the configured script repo
+export async function fsCheckout(branch) {
+  const response = await axios.post(`${API_BASE_URL}/git/fs/checkout`, { branch });
+  return response.data;
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });

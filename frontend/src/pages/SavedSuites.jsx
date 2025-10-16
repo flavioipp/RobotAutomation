@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fsListSuites, fsGetSuiteFile } from '../api';
+import { fsListSuites, fsGetSuiteFile, fsGetConfig } from '../api';
 import { useToast } from '../components/ToastContext';
 import './SavedSuites.css';
 
@@ -12,27 +12,27 @@ export default function SavedSuites() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    // try to pick a default repo from localStorage and load suites
-    try {
-      const last = localStorage.getItem('last_repo');
-      if (last) {
-        setRepo(last);
-        (async () => {
-          setLoading(true);
-          try {
-            const s = await fsListSuites(last);
-            setSuites(s || []);
-          } catch (err) {
-            console.warn('Could not list suites for repo', err);
-            setSuites([]);
-          } finally { setLoading(false); }
-        })();
-      }
-    } catch (e) {}
+    // load configured repo from backend; if not configured, show a message
+    (async () => {
+      setLoading(true);
+      try {
+        const cfg = await fsGetConfig();
+        if (cfg && cfg.script_repo_name) {
+          setRepo(cfg.script_repo_name);
+          const s = await fsListSuites(cfg.script_repo_name);
+          setSuites(s || []);
+        } else {
+          setRepo('');
+          setSuites([]);
+        }
+      } catch (err) {
+        console.warn('Could not fetch config or list suites', err);
+      } finally { setLoading(false); }
+    })();
   }, []);
 
   const loadSuites = async () => {
-    if (!repo) return showToast('Enter repository name', { type: 'error' });
+    if (!repo) return showToast('Repository not configured on the backend. Please set SCRIPT_REPO_NAME in .env', { type: 'error' });
     setLoading(true);
     try {
       const s = await fsListSuites(repo);
@@ -58,8 +58,14 @@ export default function SavedSuites() {
     <div style={{ padding: 24 }} className="saved-suites-root">
       <h2>Saved Suites</h2>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <input placeholder="Repository name (e.g. Repotest)" value={repo} onChange={(e) => setRepo(e.target.value)} style={{ padding: 8, width: 320 }} />
-        <button onClick={loadSuites}>Load</button>
+        {repo ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ padding: 8, minWidth: 320, background: '#111827', color: '#fff', borderRadius: 4 }}>{repo}</div>
+            <button onClick={loadSuites}>Reload</button>
+          </div>
+        ) : (
+          <div style={{ color: '#9ca3af' }}>No repository configured. Please set <code>SCRIPT_REPO_NAME</code> in the backend .env.</div>
+        )}
       </div>
 
       {loading && <div>Loading...</div>}
