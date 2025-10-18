@@ -245,15 +245,34 @@ def list_benches_db(
         result_items = []
         for e in items:
             brand_name = None
+            equip_type = None
+            ip_addr = None
+            net_in_use = None
             try:
                 brand_name = e.brand.brand_name if e.brand else None
             except Exception:
                 brand_name = None
+            try:
+                equip_type = e.equip_type.name if e.equip_type else None
+            except Exception:
+                equip_type = None
+            try:
+                ip_addr = e.net.IP if e.net else None
+                net_in_use = e.net.inUse if e.net else None
+            except Exception:
+                ip_addr = None
+                net_in_use = None
+
             result_items.append({
                 'id': e.id_equipment,
                 'name': e.name,
                 'brand_id': e.T_BRAND_id_brand,
-                'brand_name': brand_name
+                'brand_name': brand_name,
+                'equip_type': equip_type,
+                'ip': ip_addr,
+                'net_in_use': net_in_use,
+                'owner': e.owner,
+                'inUse': e.inUse
             })
 
         return {'items': result_items, 'limit': limit, 'offset': offset, 'total': total}

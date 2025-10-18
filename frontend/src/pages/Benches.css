@@ -1,0 +1,14 @@
+/* Styles for Benches list */
+@keyframes benchPulse {
+  0% { transform: scale(1); opacity: 1; }
+  40% { transform: scale(1.18); opacity: 0.8; }
+  70% { transform: scale(1.08); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.bench-pulse {
+  animation: benchPulse 1.5s cubic-bezier(.4,0,.2,1) infinite;
+  transform-origin: center;
+  display: inline-block;
+  /* stronger glow color for the pulse */
+  box-shadow: 0 0 12px rgba(249,115,22,0.42);
+}
