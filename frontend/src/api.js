@@ -86,9 +86,34 @@ export async function getBenches() {
   return response.data;
 }
 
+export async function getUsers() {
+  const response = await axios.get(`${API_BASE_URL}/auth/users`);
+  return response.data;
+}
+
+export async function getBrands() {
+  const response = await axios.get(`${API_BASE_URL}/db/brands`);
+  return response.data;
+}
+
+export async function getEquipTypes() {
+  const response = await axios.get(`${API_BASE_URL}/db/equip-types`);
+  return response.data;
+}
+
 export async function getBenchesPage(limit = 50, offset = 0) {
   const response = await axios.get(`${API_BASE_URL}/db/benches`, { params: { limit, offset } });
   return response.data; // { items, limit, offset, total }
+}
+
+export async function getBenchById(id) {
+  const response = await axios.get(`${API_BASE_URL}/db/benches/${id}`);
+  return response.data;
+}
+
+export async function updateBench(id, payload) {
+  const response = await axios.patch(`${API_BASE_URL}/db/benches/${id}`, payload);
+  return response.data;
 }
 
 // Authentication helpers

@@ -22,6 +22,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import { useNavigate } from 'react-router-dom';
 
 
 // Benches (Devices Under Test) - shows Name and Brand columns
@@ -47,6 +48,8 @@ const Benches = () => {
     }).finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [limit, offset]);
+
+  const navigate = useNavigate();
 
   // derive visible rows by applying filter to name and subtitle fields
   const visibleRows = (rows || []).filter((r) => {
@@ -111,12 +114,12 @@ const Benches = () => {
                           </span>
                         </Tooltip>
                       )}
-                      {r.ip && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PublicIcon fontSize="small" sx={{ color: '#6b7280' }} />IP: {r.ip}</span>}
+                      {r.ip && <span role="button" tabIndex={0} onClick={() => navigate(`/benches/${r.id}`, { state: { bench: r } })} className="bench-fixed" style={{ cursor: 'pointer' }}><PublicIcon fontSize="small" sx={{ color: '#6b7280' }} /><span className="bench-fixed-text" title={r.ip}>IP: {r.ip}</span></span>}
                       {r.brand_name ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><BusinessIcon fontSize="small" sx={{ color: '#6b7280' }} />Brand: {r.brand_name}</span>
+                        <span role="button" tabIndex={0} onClick={() => navigate(`/benches/${r.id}`, { state: { bench: r } })} className="bench-brand" style={{ cursor: 'pointer' }}><BusinessIcon fontSize="small" sx={{ color: '#6b7280' }} /><span className="bench-brand-text" title={r.brand_name}>Brand: {r.brand_name}</span></span>
                       ) : (r.brand_id ? <span>Brand ID: {r.brand_id}</span> : null)}
-                      {r.equip_type && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><SettingsIcon fontSize="small" sx={{ color: '#6b7280' }} />Type: {r.equip_type}</span>}
-                      {r.owner && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><PersonIcon fontSize="small" sx={{ color: '#6b7280' }} />Owner: {r.owner}</span>}
+                      {r.equip_type && <span role="button" tabIndex={0} onClick={() => navigate(`/benches/${r.id}`, { state: { bench: r } })} className="bench-fixed" style={{ cursor: 'pointer' }}><SettingsIcon fontSize="small" sx={{ color: '#6b7280' }} /><span className="bench-fixed-text" title={r.equip_type}>Type: {r.equip_type}</span></span>}
+                      {r.owner && <span role="button" tabIndex={0} onClick={() => navigate(`/benches/${r.id}`, { state: { bench: r } })} className="bench-fixed" style={{ cursor: 'pointer' }}><PersonIcon fontSize="small" sx={{ color: '#6b7280' }} /><span className="bench-fixed-text" title={r.owner}>Owner: {r.owner}</span></span>}
                       {/* ID intentionally hidden from UI; kept as row key */}
                     </div>
                     

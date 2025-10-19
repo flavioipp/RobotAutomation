@@ -12,3 +12,63 @@
   /* stronger glow color for the pulse */
   box-shadow: 0 0 12px rgba(249,115,22,0.42);
 }
+
+/* subtitle grid: fixed icon columns + flexible text area
+   layout: icon | text gap | icon | text ... but with consistent icon spacing
+*/
+.bench-subtitle {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content 1fr;
+  gap: 12px 8px; /* 12px between icon/text groups, 8px between icon and its text */
+  align-items: center;
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 6px;
+}
+.bench-item {
+  display: contents; /* keep grid cells but not extra DOM layer */
+}
+.bench-item.brand {
+  min-width: 160px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bench-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* fixed-width brand text with ellipsis */
+.bench-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bench-brand .bench-brand-text {
+  display: inline-block;
+  max-width: 160px;
+  min-width:100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* generic fixed-width truncation for subtitle fields */
+.bench-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bench-fixed .bench-fixed-text {
+  display: inline-block;
+  max-width: 140px;
+  min-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

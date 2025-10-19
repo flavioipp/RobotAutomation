@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from backend.db.session import SessionLocal
 from backend.gitmanager.service import clone_or_pull
-from backend.db.models import Repo, Script
+from backend.db.models import Repo, Script, User
 from backend.db import t_models as tmodels
 from pathlib import Path
 import os
@@ -13,9 +13,10 @@ from fastapi import Query
 from jose import jwt, JWTError
 import re
 import json
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional
 from git import Repo as GitRepo, GitCommandError
+from pydantic import constr
 
 router = APIRouter()
 
@@ -280,6 +281,144 @@ def list_benches_db(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not query benches (ORM): {e}")
+
+
+@router.get('/benches/{bench_id}')
+def get_bench_by_id(
+    bench_id: int,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Return a single bench by id."""
+    try:
+        e = db.query(tmodels.TEquipment).options(joinedload(tmodels.TEquipment.brand)).filter(tmodels.TEquipment.id_equipment == bench_id).first()
+        if not e:
+            raise HTTPException(status_code=404, detail="Bench not found")
+
+        try:
+            brand_name = e.brand.brand_name if e.brand else None
+        except Exception:
+            brand_name = None
+        try:
+            equip_type = e.equip_type.name if e.equip_type else None
+        except Exception:
+            equip_type = None
+        try:
+            ip_addr = e.net.IP if e.net else None
+            net_in_use = e.net.inUse if e.net else None
+        except Exception:
+            ip_addr = None
+            net_in_use = None
+
+        # attempt to resolve owner username to a user id if present
+        owner_id = None
+        try:
+            if e.owner:
+                u = db.query(User).filter(User.username == e.owner).first()
+                if u:
+                    owner_id = u.id
+        except Exception:
+            owner_id = None
+
+        item = {
+            'id': e.id_equipment,
+            'name': e.name,
+            'brand_id': e.T_BRAND_id_brand,
+            'brand_name': brand_name,
+            'equip_type': equip_type,
+            'equip_type_id': getattr(e, 'T_EQUIP_TYPE_id_type', None),
+            'ip': ip_addr,
+            'net_in_use': net_in_use,
+            'owner': e.owner,
+            'owner_id': owner_id,
+            'inUse': e.inUse
+        }
+        return item
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not query bench (ORM): {e}")
+
+
+class BenchUpdatePayload(BaseModel):
+    # Partial payload: name and/or owner_id/brand_id may be provided. Both optional for PATCH semantics.
+    name: Optional[str] = Field(None, min_length=1, pattern=r"^\S+$")
+    owner_id: Optional[int] = None
+    brand_id: Optional[int] = None
+    equip_type_id: Optional[int] = None
+
+
+@router.patch('/benches/{bench_id}')
+def update_bench_name(
+    bench_id: int,
+    payload: BenchUpdatePayload,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Update bench fields (supports `name` and `owner`).
+
+    - `name`: must be non-empty and contain no whitespace if provided.
+    - `owner`: username of an existing user (or null) if provided.
+    """
+    try:
+        e = db.query(tmodels.TEquipment).filter(tmodels.TEquipment.id_equipment == bench_id).first()
+        if not e:
+            raise HTTPException(status_code=404, detail="Bench not found")
+        # determine which fields were provided in the PATCH payload
+        provided = payload.model_dump(exclude_unset=True)
+        if 'name' in provided:
+            # payload.name already validated by Pydantic (no whitespace)
+            e.name = payload.name
+        if 'owner_id' in provided:
+            # allow clearing owner by sending null
+            owner_id_val = provided.get('owner_id')
+            if owner_id_val is None:
+                e.owner = None
+            else:
+                u = db.query(User).filter(User.id == owner_id_val).first()
+                if not u:
+                    raise HTTPException(status_code=400, detail=f"Owner id '{owner_id_val}' not found")
+                e.owner = u.username
+        if 'brand_id' in provided:
+            brand_id_val = provided.get('brand_id')
+            if brand_id_val is None:
+                e.T_BRAND_id_brand = None
+            else:
+                # validate brand exists in TBrand table
+                b = db.query(tmodels.TBrand).filter(tmodels.TBrand.id_brand == brand_id_val).first()
+                if not b:
+                    raise HTTPException(status_code=400, detail=f"Brand id '{brand_id_val}' not found")
+                e.T_BRAND_id_brand = brand_id_val
+        if 'equip_type_id' in provided:
+            et_id = provided.get('equip_type_id')
+            if et_id is None:
+                # depending on schema, this FK may be nullable; set to None
+                try:
+                    e.T_EQUIP_TYPE_id_type = None
+                except Exception:
+                    pass
+            else:
+                et = db.query(tmodels.TEquipType).filter(tmodels.TEquipType.id_type == et_id).first()
+                if not et:
+                    raise HTTPException(status_code=400, detail=f"Equip type id '{et_id}' not found")
+                # set FK column; model field name may be T_EQUIP_TYPE_id_type
+                try:
+                    e.T_EQUIP_TYPE_id_type = et_id
+                except Exception:
+                    # fallback: if model uses different attribute, try setting via relationship
+                    try:
+                        e.equip_type = et
+                    except Exception:
+                        raise HTTPException(status_code=500, detail="Could not set equip type")
+        db.add(e)
+        db.commit()
+        db.refresh(e)
+        return { 'id': e.id_equipment, 'name': e.name, 'owner': e.owner, 'brand_id': e.T_BRAND_id_brand }
+    except HTTPException:
+        raise
+    except Exception as ex:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not update bench: {ex}")
 
 
 class CheckoutPayload(BaseModel):
@@ -562,6 +701,32 @@ def fs_get_meta_dir(repo: str, path: str = '.'):
             metas[str(child.relative_to(repo_dir))] = {"path": str(child.relative_to(repo_dir)), "description": description, "topology": topology, "author": author, "explicit_fields": explicit_fields}
 
     return metas
+
+
+@router.get('/brands')
+def list_brands(db: Session = Depends(get_db)):
+    """Return list of brands (id_brand, brand_name)."""
+    try:
+        brands = db.query(tmodels.TBrand).all()
+        result = []
+        for b in brands:
+            result.append({'id': b.id_brand, 'name': b.brand_name})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not query brands: {e}")
+
+
+@router.get('/equip-types')
+def list_equip_types(db: Session = Depends(get_db)):
+    """Return list of equipment types (id_type, name)."""
+    try:
+        types = db.query(tmodels.TEquipType).all()
+        out = []
+        for t in types:
+            out.append({'id': t.id_type, 'name': t.equip_name if hasattr(t, 'equip_name') else getattr(t, 'name', None)})
+        return out
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not query equip types: {e}")
 
 
 class SuitePayload(BaseModel):

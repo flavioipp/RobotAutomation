@@ -4,6 +4,7 @@ import ScriptsTable from "./components/ScriptsTable";
 import ScriptBrowser from "./components/ScriptBrowser";
 import SavedSuites from './pages/SavedSuites';
 import Benches from './pages/Benches';
+import BenchDetails from './pages/BenchDetails';
 import Dashboard from './components/Dashboard.jsx';
 import Sidebar from './components/Sidebar';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -265,6 +266,7 @@ function App() {
           />} />
           <Route path="/suites" element={<SavedSuites />} />
           <Route path="/benches" element={<Benches />} />
+          <Route path="/benches/:id" element={<BenchDetails />} />
         </Routes>
 
         {/* Overlay loader when content is visible but ScriptsTable is loading */}
