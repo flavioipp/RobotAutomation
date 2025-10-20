@@ -1,7 +1,8 @@
 # Python
-__pycache__/
+**__pycache__/
 *.py[cod]
 *.so
+*$py.class
 
 # Virtualenv
 .venv/
@@ -25,9 +26,7 @@ ENV/
 .pytest_cache/
 
 # Byte-compiled / optimized / DLL files
-!**/__pycache__/
-*.py[cod]
-*$py.class
+
 
 # Distribution / packaging
 build/
