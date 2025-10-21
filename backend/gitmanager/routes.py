@@ -249,6 +249,8 @@ def list_benches_db(
             equip_type = None
             ip_addr = None
             net_in_use = None
+            mask = None
+            gateway = None
             try:
                 brand_name = e.brand.brand_name if e.brand else None
             except Exception:
@@ -260,9 +262,14 @@ def list_benches_db(
             try:
                 ip_addr = e.net.IP if e.net else None
                 net_in_use = e.net.inUse if e.net else None
+                # NM and GW columns in T_NET
+                mask = getattr(e.net, 'NM', None) if e.net else None
+                gateway = getattr(e.net, 'GW', None) if e.net else None
             except Exception:
                 ip_addr = None
                 net_in_use = None
+                mask = None
+                gateway = None
 
             result_items.append({
                 'id': e.id_equipment,
@@ -271,9 +278,14 @@ def list_benches_db(
                 'brand_name': brand_name,
                 'equip_type': equip_type,
                 'ip': ip_addr,
+                'mask': mask,
+                'gateway': gateway,
                 'net_in_use': net_in_use,
                 'owner': e.owner,
-                'inUse': e.inUse
+                'inUse': e.inUse,
+                'description': getattr(e, 'description', None),
+                'lib_id': getattr(e, 'T_LIB_id_lib', None),
+                'lib_name': getattr(e.lib, 'lib_name', None) if getattr(e, 'lib', None) else None
             })
 
         return {'items': result_items, 'limit': limit, 'offset': offset, 'total': total}
@@ -306,9 +318,13 @@ def get_bench_by_id(
         try:
             ip_addr = e.net.IP if e.net else None
             net_in_use = e.net.inUse if e.net else None
+            mask = getattr(e.net, 'NM', None) if e.net else None
+            gateway = getattr(e.net, 'GW', None) if e.net else None
         except Exception:
             ip_addr = None
             net_in_use = None
+            mask = None
+            gateway = None
 
         # attempt to resolve owner username to a user id if present
         owner_id = None
@@ -328,10 +344,15 @@ def get_bench_by_id(
             'equip_type': equip_type,
             'equip_type_id': getattr(e, 'T_EQUIP_TYPE_id_type', None),
             'ip': ip_addr,
+            'mask': mask,
+            'gateway': gateway,
             'net_in_use': net_in_use,
             'owner': e.owner,
             'owner_id': owner_id,
-            'inUse': e.inUse
+            'inUse': e.inUse,
+            'description': getattr(e, 'description', None),
+            'lib_id': getattr(e, 'T_LIB_id_lib', None),
+            'lib_name': getattr(e.lib, 'lib_name', None) if getattr(e, 'lib', None) else None
         }
         return item
     except HTTPException:
@@ -346,6 +367,11 @@ class BenchUpdatePayload(BaseModel):
     owner_id: Optional[int] = None
     brand_id: Optional[int] = None
     equip_type_id: Optional[int] = None
+    mask: Optional[str] = None
+    gateway: Optional[str] = None
+    ip: Optional[str] = None
+    description: Optional[str] = None
+    lib_id: Optional[int] = None
 
 
 @router.patch('/benches/{bench_id}')
@@ -410,10 +436,179 @@ def update_bench_name(
                         e.equip_type = et
                     except Exception:
                         raise HTTPException(status_code=500, detail="Could not set equip type")
+        # handle IP/mask/gateway updates: these live in the T_NET table (relationship e.net)
+        if 'ip' in provided:
+            ip_val = provided.get('ip')
+            # if payload explicitly sets ip to null/None, attempt to unlink
+            if ip_val is None:
+                try:
+                    e.T_NET_id_ip = None
+                except Exception:
+                    try:
+                        # fallback: if relationship is assignable
+                        e.net = None
+                    except Exception:
+                        pass
+            else:
+                # 1) deny if another equipment already uses this IP
+                try:
+                    other = db.query(tmodels.TEquipment).join(tmodels.TNet).filter(getattr(tmodels.TNet, 'IP') == ip_val, tmodels.TEquipment.id_equipment != bench_id).first()
+                    if other:
+                        raise HTTPException(status_code=400, detail=f"IP '{ip_val}' is already used by another equipment (id {other.id_equipment})")
+                except HTTPException:
+                    raise
+                except Exception as ex:
+                    raise HTTPException(status_code=500, detail=f"Could not validate IP uniqueness: {ex}")
+
+                # 2) if T_NET row exists for this IP, link and update it
+                try:
+                    existing_net = db.query(tmodels.TNet).filter(getattr(tmodels.TNet, 'IP') == ip_val).first()
+                except Exception as ex:
+                    raise HTTPException(status_code=500, detail=f"Could not query T_NET: {ex}")
+
+                if existing_net:
+                    # update NM/GW if provided (or keep existing values)
+                    if 'mask' in provided:
+                        try:
+                            setattr(existing_net, 'NM', provided.get('mask'))
+                        except Exception:
+                            pass
+                    if 'gateway' in provided:
+                        try:
+                            setattr(existing_net, 'GW', provided.get('gateway'))
+                        except Exception:
+                            pass
+                    db.add(existing_net)
+                    # link equipment to existing net
+                    try:
+                        e.T_NET_id_ip = getattr(existing_net, 'id_ip', None)
+                    except Exception:
+                        try:
+                            e.net = existing_net
+                        except Exception:
+                            pass
+                else:
+                    # 3) create a new T_NET row with provided IP and mask/gateway
+                    try:
+                        net = tmodels.TNet()
+                        # set requested defaults for newly created network rows
+                        try:
+                            if hasattr(net, 'protocol'):
+                                net.protocol = 'v4'
+                        except Exception:
+                            pass
+                        try:
+                            if hasattr(net, 'inUse'):
+                                net.inUse = 1
+                        except Exception:
+                            pass
+                        setattr(net, 'IP', ip_val)
+                        # set NM/GW from payload if present, otherwise leave None
+                        if 'mask' in provided:
+                            try:
+                                setattr(net, 'NM', provided.get('mask'))
+                            except Exception:
+                                pass
+                        if 'gateway' in provided:
+                            try:
+                                setattr(net, 'GW', provided.get('gateway'))
+                            except Exception:
+                                pass
+                        db.add(net)
+                        db.flush()
+                        try:
+                            e.T_NET_id_ip = getattr(net, 'id_ip', None)
+                        except Exception:
+                            try:
+                                e.net = net
+                            except Exception:
+                                pass
+                    except Exception as ex:
+                        raise HTTPException(status_code=500, detail=f"Could not create T_NET row: {ex}")
+
+        # if ip not provided, but mask/gateway are provided, preserve previous behaviour of ensuring a TNet exists
+        if 'ip' not in provided and ('mask' in provided or 'gateway' in provided):
+            mask_val = provided.get('mask') if 'mask' in provided else None
+            gw_val = provided.get('gateway') if 'gateway' in provided else None
+            try:
+                net = None
+                if getattr(e, 'net', None):
+                    net = e.net
+                else:
+                    net = tmodels.TNet()
+                    # set requested defaults for newly created network rows
+                    try:
+                        if hasattr(net, 'protocol'):
+                            net.protocol = 'v4'
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(net, 'inUse'):
+                            net.inUse = 1
+                    except Exception:
+                        pass
+                    if hasattr(net, 'IP') and getattr(net, 'IP', None) is None:
+                        net.IP = ''
+                    db.add(net)
+                    db.flush()
+                    try:
+                        e.T_NET_id_ip = getattr(net, 'id_ip', None)
+                    except Exception:
+                        pass
+                if mask_val is not None:
+                    try:
+                        setattr(net, 'NM', mask_val)
+                    except Exception:
+                        pass
+                if gw_val is not None:
+                    try:
+                        setattr(net, 'GW', gw_val)
+                    except Exception:
+                        pass
+                db.add(net)
+            except Exception as ex:
+                raise HTTPException(status_code=500, detail=f"Could not update network fields: {ex}")
+        if 'description' in provided:
+            try:
+                # allow clearing description by sending null
+                if provided.get('description') is None:
+                    setattr(e, 'description', None)
+                else:
+                    setattr(e, 'description', provided.get('description'))
+            except Exception:
+                pass
+
+        if 'lib_id' in provided:
+            lib_val = provided.get('lib_id')
+            if lib_val is None:
+                try:
+                    e.T_LIB_id_lib = None
+                except Exception:
+                    pass
+            else:
+                lib_row = db.query(tmodels.TLib).filter(tmodels.TLib.id_lib == lib_val).first()
+                if not lib_row:
+                    raise HTTPException(status_code=400, detail=f"Lib id '{lib_val}' not found")
+                try:
+                    e.T_LIB_id_lib = lib_val
+                except Exception:
+                    try:
+                        e.lib = lib_row
+                    except Exception:
+                        pass
         db.add(e)
         db.commit()
         db.refresh(e)
-        return { 'id': e.id_equipment, 'name': e.name, 'owner': e.owner, 'brand_id': e.T_BRAND_id_brand }
+        # include network info in response for frontend to update local state
+        try:
+            ip_out = e.net.IP if getattr(e, 'net', None) else None
+            mask_out = getattr(e.net, 'NM', None) if getattr(e, 'net', None) else None
+            gw_out = getattr(e.net, 'GW', None) if getattr(e, 'net', None) else None
+        except Exception:
+            ip_out = None
+            mask_out = None
+            gw_out = None
+        return { 'id': e.id_equipment, 'name': e.name, 'owner': e.owner, 'brand_id': e.T_BRAND_id_brand, 'ip': ip_out, 'mask': mask_out, 'gateway': gw_out, 'description': getattr(e, 'description', None), 'lib_id': getattr(e, 'T_LIB_id_lib', None), 'lib_name': getattr(e.lib, 'lib_name', None) if getattr(e, 'lib', None) else None }
     except HTTPException:
         raise
     except Exception as ex:
@@ -727,6 +922,27 @@ def list_equip_types(db: Session = Depends(get_db)):
         return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not query equip types: {e}")
+
+
+@router.get('/libs')
+def list_libs(equip_type_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+    """Return list of libraries (id_lib, lib_name).
+
+    If `equip_type_id` is provided, only return libs that are associated with that equipment type
+    via the T_LIB_DOMAIN table.
+    """
+    try:
+        if equip_type_id is None:
+            libs = db.query(tmodels.TLib).all()
+        else:
+            # join with T_LIB_DOMAIN to filter libs allowed for the given equip type
+            libs = db.query(tmodels.TLib).join(tmodels.TLibDomain, tmodels.TLib.id_lib == tmodels.TLibDomain.T_LIB_id_lib).filter(tmodels.TLibDomain.T_EQUIP_TYPE_id_type == equip_type_id).all()
+        out = []
+        for l in libs:
+            out.append({'id': l.id_lib, 'name': l.lib_name})
+        return out
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not query libs: {e}")
 
 
 class SuitePayload(BaseModel):

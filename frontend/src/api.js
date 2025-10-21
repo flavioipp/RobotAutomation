@@ -101,6 +101,16 @@ export async function getEquipTypes() {
   return response.data;
 }
 
+export async function getLibs() {
+  const response = await axios.get(`${API_BASE_URL}/db/libs`);
+  return response.data;
+}
+
+export async function getLibsForEquipType(equipTypeId) {
+  const response = await axios.get(`${API_BASE_URL}/db/libs`, { params: { equip_type_id: equipTypeId } });
+  return response.data;
+}
+
 export async function getBenchesPage(limit = 50, offset = 0) {
   const response = await axios.get(`${API_BASE_URL}/db/benches`, { params: { limit, offset } });
   return response.data; // { items, limit, offset, total }
