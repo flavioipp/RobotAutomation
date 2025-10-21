@@ -126,6 +126,11 @@ export async function updateBench(id, payload) {
   return response.data;
 }
 
+export async function revealCredential(benchId, credId) {
+  const response = await axios.get(`${API_BASE_URL}/db/benches/${benchId}/credentials/${credId}`);
+  return response.data; // { cred_id, pwd }
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });

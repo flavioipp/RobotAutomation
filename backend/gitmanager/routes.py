@@ -287,6 +287,38 @@ def list_benches_db(
                 'lib_id': getattr(e, 'T_LIB_id_lib', None),
                 'lib_name': getattr(e.lib, 'lib_name', None) if getattr(e, 'lib', None) else None
             })
+            # try to attach credentials if present
+            try:
+                creds = db.query(tmodels.TEqptCred).options(joinedload(tmodels.TEqptCred.eqpt_cred_type)).filter(tmodels.TEqptCred.T_EQUIPMENT_id_equipment == e.id_equipment).all()
+                if creds:
+                    cl = []
+                    for c in creds:
+                        # include both the FK id and the human-readable type from T_EQPT_CRED_TYPE.cr_type
+                        cl.append({
+                            'cred_id': getattr(c, 'cred_id', None),
+                            'type_id': getattr(c, 'T_EQPT_CRED_TYPE_id_cred_type', None),
+                            'type': getattr(c.eqpt_cred_type, 'cr_type', None) if getattr(c, 'eqpt_cred_type', None) else None,
+                            'usr': getattr(c, 'usr', None),
+                                # do NOT expose credential secrets in list endpoints; redact here
+                                'pwd': None,
+                            'port': getattr(c, 'port', None)
+                        })
+                    result_items[-1]['credentials'] = cl
+                    # convenience fields (first credential) preserved for backwards-compatibility
+                    result_items[-1]['credential_user'] = cl[0].get('usr')
+                    # redact convenience secret as well
+                    result_items[-1]['credential_secret'] = None
+                    result_items[-1]['credential_port'] = cl[0].get('port')
+                else:
+                    result_items[-1]['credentials'] = []
+                    result_items[-1]['credential_user'] = None
+                    result_items[-1]['credential_secret'] = None
+                    result_items[-1]['credential_port'] = None
+            except Exception:
+                result_items[-1]['credentials'] = []
+                result_items[-1]['credential_user'] = None
+                result_items[-1]['credential_secret'] = None
+                result_items[-1]['credential_port'] = None
 
         return {'items': result_items, 'limit': limit, 'offset': offset, 'total': total}
     except HTTPException:
@@ -354,11 +386,60 @@ def get_bench_by_id(
             'lib_id': getattr(e, 'T_LIB_id_lib', None),
             'lib_name': getattr(e.lib, 'lib_name', None) if getattr(e, 'lib', None) else None
         }
+        # include credentials for this equipment (T_EQPT_CRED)
+        try:
+            creds = db.query(tmodels.TEqptCred).options(joinedload(tmodels.TEqptCred.eqpt_cred_type)).filter(tmodels.TEqptCred.T_EQUIPMENT_id_equipment == bench_id).all()
+            creds_list = []
+            for c in creds:
+                creds_list.append({
+                    'cred_id': getattr(c, 'cred_id', None),
+                    'type_id': getattr(c, 'T_EQPT_CRED_TYPE_id_cred_type', None),
+                    'type': getattr(c.eqpt_cred_type, 'cr_type', None) if getattr(c, 'eqpt_cred_type', None) else None,
+                    'usr': getattr(c, 'usr', None),
+                    # never return password in this response
+                    'pwd': None,
+                    'port': getattr(c, 'port', None)
+                })
+            if creds_list:
+                item['credentials'] = creds_list
+            else:
+                item['credentials'] = []
+        except Exception:
+            item['credentials'] = []
+            item['credential_user'] = None
+            item['credential_secret'] = None
+            item['credential_port'] = None
         return item
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not query bench (ORM): {e}")
+
+
+
+
+@router.get('/benches/{bench_id}/credentials/{cred_id}')
+def reveal_credential_secret(
+    bench_id: int,
+    cred_id: int,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Return the secret (pwd) for a specific credential belonging to a bench.
+
+    This endpoint is intentionally explicit and requires authentication. It returns
+    { cred_id, pwd } if the credential exists and belongs to the requested bench.
+    """
+    try:
+        c = db.query(tmodels.TEqptCred).filter(tmodels.TEqptCred.cred_id == cred_id, tmodels.TEqptCred.T_EQUIPMENT_id_equipment == bench_id).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Credential not found for this bench")
+        # return only the secret and id; don't include other sensitive data
+        return { 'cred_id': getattr(c, 'cred_id', None), 'pwd': getattr(c, 'pwd', None) }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not reveal credential: {e}")
 
 
 class BenchUpdatePayload(BaseModel):
@@ -436,6 +517,7 @@ def update_bench_name(
                         e.equip_type = et
                     except Exception:
                         raise HTTPException(status_code=500, detail="Could not set equip type")
+
         # handle IP/mask/gateway updates: these live in the T_NET table (relationship e.net)
         if 'ip' in provided:
             ip_val = provided.get('ip')

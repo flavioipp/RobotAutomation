@@ -7,13 +7,16 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import Chip from '@mui/material/Chip';
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useToast } from '../components/ToastContext';
 import { updateBench } from '../api';
 import Stack from '@mui/material/Stack';
-import { getUsers, getBrands, getEquipTypes, getLibsForEquipType, getLibs } from '../api';
+import { getUsers, getBrands, getEquipTypes, getLibsForEquipType, getLibs, revealCredential } from '../api';
 
 // BenchDetails: shows a readonly form with all fields available for a bench (for now)
 export default function BenchDetails() {
@@ -56,6 +59,38 @@ export default function BenchDetails() {
   const isIpDirty = editing && (ipValue !== (data?.ip ?? ''));
   // include mask/gateway in overall dirty
   const isAnyDirtyFinal = isAnyDirty || isMaskDirty || isGwDirty || isIpDirty;
+
+  // map of cred_id -> revealed plaintext pwd (kept in-memory only)
+  const [revealedSecrets, setRevealedSecrets] = React.useState({});
+
+  const maskSecret = (s) => {
+    const dot = '•';
+    if (!s) return dot.repeat(8); // default mask length
+    try {
+      return dot.repeat(s.length);
+    } catch (e) {
+      return dot.repeat(8);
+    }
+  };
+
+  const handleReveal = async (credId) => {
+    if (!credId) return;
+    // toggle: if already revealed, hide
+    if (revealedSecrets[credId]) {
+      setRevealedSecrets((s) => { const copy = { ...s }; delete copy[credId]; return copy; });
+      return;
+    }
+    try {
+      const benchId = data?.id || params?.id;
+      const res = await revealCredential(benchId, credId);
+      setRevealedSecrets((s) => ({ ...s, [credId]: res.pwd }));
+    } catch (e) {
+      console.error('Could not reveal credential', e);
+      showToast('Could not reveal credential: ' + (e.response?.data?.detail || e.message), { type: 'error' });
+    }
+  };
+
+  // no convenience first credential id anymore
 
   React.useEffect(() => { setNameValue(data?.name || ''); setMaskValue(data?.mask ?? ''); setGwValue(data?.gateway ?? ''); setIpValue(data?.ip ?? ''); }, [data]);
   React.useEffect(() => { setDescriptionValue(data?.description ?? ''); }, [data]);
@@ -487,12 +522,40 @@ export default function BenchDetails() {
                 />
 
 
-            {Object.keys(data).filter(k => !['id','name','brand_name','brand_id','owner','owner_id','equip_type','equip_type_id','ip','mask','gateway','net_in_use','inUse','nm','gw','description','lib_id','lib_name'].includes(k)).map((k) => (
-              <TextField key={k} label={k} value={String(data[k] ?? '')} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: '100%' }} />
-            ))}
+            {Object.keys(data)
+              .filter(k => !['id','name','brand_name','brand_id','owner','owner_id','equip_type','equip_type_id','ip','mask','gateway','net_in_use','inUse','nm','gw','description','lib_id','lib_name','credential_port','credential_user','credential_secret','credentials'].includes(k))
+              .map((k) => (
+                <TextField key={k} label={k} value={String(data[k] ?? '')} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: '100%' }} />
+              ))}
+          </Box>
+        </Box>
+
+        {/* New framed section titled 'XXXX' inserted below the main form */}
+        <Box sx={{ mt: 2 }}>
+          <Box sx={{ p: 1, border: '1px solid', borderColor: '#374151', borderRadius: 1, background: 'transparent' }}>
+            <Typography variant="subtitle2" sx={{ display: 'block', mb: 1, color: '#111827' }}>XXXX</Typography>
+            <Box sx={{ minHeight: 40, display: 'flex', gap: 2, alignItems: 'center', flexDirection: 'row', overflowX: 'auto', px: 0.5 }}>
+              {/* per-credential inline items */}
+              {Array.isArray(data.credentials) && data.credentials.length > 0 && data.credentials.map((c) => (
+                <Box key={c.cred_id || c.type_id || c.type} sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: '0 0 auto' }}>
+                  <TextField label={'type'} value={c?.type || ''} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 140, flex: '0 0 140px' }} />
+                  <TextField label={'user'} value={c?.usr || ''} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 160, flex: '0 0 160px' }} />
+                  <TextField label={'secret'} value={revealedSecrets[c.cred_id] ?? maskSecret(c?.pwd)} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 160, flex: '0 0 160px' }} />
+                  <IconButton size="small" onClick={() => handleReveal(c.cred_id)} sx={{ flex: '0 0 auto' }}>
+                    {revealedSecrets[c.cred_id] ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                  </IconButton>
+                </Box>
+              ))}
+
+              {/* credential_port: compact and placed at the end */}
+              {data.credential_port !== undefined && (
+                <TextField label={'port'} value={String(data.credential_port ?? '')} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 100, flex: '0 0 100px' }} />
+              )}
+            </Box>
           </Box>
         </Box>
       </Paper>
+      
     </Box>
   );
 }
