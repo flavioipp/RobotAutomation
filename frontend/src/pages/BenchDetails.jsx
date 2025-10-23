@@ -4,19 +4,30 @@ import { getBenchById } from '../api';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import ConfirmDialog from '../components/ConfirmDialog';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
 import Chip from '@mui/material/Chip';
 import TextField from '@mui/material/TextField';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Autocomplete from '@mui/material/Autocomplete';
 import { useToast } from '../components/ToastContext';
 import { updateBench } from '../api';
 import Stack from '@mui/material/Stack';
-import { getUsers, getBrands, getEquipTypes, getLibsForEquipType, getLibs, revealCredential } from '../api';
+import { getUsers, getBrands, getEquipTypes, getLibsForEquipType, getLibs, revealCredential, updateCredential, deleteCredential, createCredential, getCredentialTypes } from '../api';
 
 // BenchDetails: shows a readonly form with all fields available for a bench (for now)
 export default function BenchDetails() {
@@ -63,6 +74,33 @@ export default function BenchDetails() {
   // map of cred_id -> revealed plaintext pwd (kept in-memory only)
   const [revealedSecrets, setRevealedSecrets] = React.useState({});
 
+  // per-row credential editing state
+  const [editingCredId, setEditingCredId] = React.useState(null);
+  const [editValues, setEditValues] = React.useState({ usr: '', port: '', pwd: '' });
+  const [showEditPwd, setShowEditPwd] = React.useState(false);
+  // adding new credential
+  const [addingNew, setAddingNew] = React.useState(false);
+  const [newCredValues, setNewCredValues] = React.useState({ type_id: '', usr: '', port: '', pwd: '' });
+  const [credentialTypes, setCredentialTypes] = React.useState([]);
+
+  const isNewCredValid = React.useMemo(() => {
+    try {
+      const typeId = Number(newCredValues.type_id);
+      const hasType = credentialTypes.some(t => t.id === typeId);
+      const usrOk = (newCredValues.usr || '').toString().trim() !== '';
+      const portOk = (newCredValues.port || '').toString().trim() !== '';
+      const pwdOk = (newCredValues.pwd || '').toString().trim() !== '';
+      return hasType && usrOk && portOk && pwdOk;
+    } catch (e) {
+      return false;
+    }
+  }, [newCredValues, credentialTypes]);
+  // dialog state for delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [toDeleteCred, setToDeleteCred] = React.useState(null);
+
+  
+
   const maskSecret = (s) => {
     const dot = '•';
     if (!s) return dot.repeat(8); // default mask length
@@ -88,6 +126,88 @@ export default function BenchDetails() {
       console.error('Could not reveal credential', e);
       showToast('Could not reveal credential: ' + (e.response?.data?.detail || e.message), { type: 'error' });
     }
+  };
+
+  const startEditCred = (c) => {
+    if (!c || !c.cred_id) return;
+    setEditingCredId(c.cred_id);
+    setEditValues({ usr: c?.usr || '', port: c?.port ?? '', pwd: '' });
+    setShowEditPwd(false);
+  };
+
+  const cancelEditCred = () => {
+    setEditingCredId(null);
+    setEditValues({ usr: '', port: '', pwd: '' });
+    setShowEditPwd(false);
+  };
+
+  const saveEditCred = async (c) => {
+    if (!c || !c.cred_id) return;
+    const benchId = data?.id || params?.id;
+    const payload = {};
+    if (editValues.usr !== (c.usr || '')) payload.usr = editValues.usr || null;
+    // allow empty port to be null
+    const portVal = editValues.port === '' ? null : Number(editValues.port);
+    if ((c.port ?? null) !== portVal) payload.port = portVal;
+    if (editValues.pwd && editValues.pwd.length > 0) payload.pwd = editValues.pwd;
+    if (!Object.keys(payload).length) {
+      // nothing changed
+      cancelEditCred();
+      return;
+    }
+    try {
+      const res = await updateCredential(benchId, c.cred_id, payload);
+      // update local data.credentials by replacing the modified row
+      setData((d) => {
+        const creds = Array.isArray(d.credentials) ? [...d.credentials] : [];
+        const idx = creds.findIndex(x => x.cred_id === c.cred_id);
+        if (idx >= 0) {
+          // merge server response into row (pwd will be redacted by server)
+          creds[idx] = { ...creds[idx], ...res };
+        }
+        return { ...d, credentials: creds };
+      });
+      // clear any revealed secret cached for this cred
+      setRevealedSecrets((s) => { const copy = { ...s }; delete copy[c.cred_id]; return copy; });
+      showToast('Credential updated', { type: 'success' });
+      cancelEditCred();
+    } catch (e) {
+      console.error('Could not update credential', e);
+      showToast('Could not update credential: ' + (e.response?.data?.detail || e.message), { type: 'error' });
+    }
+  };
+
+  const handleDeleteCred = async (c) => {
+    if (!c || !c.cred_id) return;
+    // open confirmation dialog
+    setToDeleteCred(c);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteCred = async () => {
+    const c = toDeleteCred;
+    if (!c || !c.cred_id) {
+      setDeleteDialogOpen(false);
+      setToDeleteCred(null);
+      return;
+    }
+    const benchId = data?.id || params?.id;
+    try {
+      await deleteCredential(benchId, c.cred_id);
+      setData((d) => ({ ...d, credentials: Array.isArray(d.credentials) ? d.credentials.filter(x => x.cred_id !== c.cred_id) : [] }));
+      setRevealedSecrets((s) => { const copy = { ...s }; delete copy[c.cred_id]; return copy; });
+      showToast('Credential deleted', { type: 'success' });
+    } catch (e) {
+      console.error('Could not delete credential', e);
+      showToast('Could not delete credential: ' + (e.response?.data?.detail || e.message), { type: 'error' });
+    }
+    setDeleteDialogOpen(false);
+    setToDeleteCred(null);
+  };
+
+  const cancelDeleteCred = () => {
+    setDeleteDialogOpen(false);
+    setToDeleteCred(null);
   };
 
   // no convenience first credential id anymore
@@ -273,6 +393,43 @@ export default function BenchDetails() {
     return () => { mounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  // fetch credential types for Add/Edit
+  React.useEffect(() => {
+    let mounted = true;
+    const loadTypes = async () => {
+      try {
+        const res = await getCredentialTypes();
+        if (!mounted) return;
+        setCredentialTypes(res || []);
+      } catch (e) {
+        if (!mounted) return;
+        setCredentialTypes([]);
+      }
+    };
+    loadTypes();
+    return () => { mounted = false; };
+  }, []);
+
+  // compute whether the credentials table should scroll (show at most 3 rows)
+  const _credsList = Array.isArray(data?.credentials) ? data.credentials : [];
+  const _totalCredentialRows = _credsList.length + (addingNew ? 1 : 0);
+  const _shouldCredentialScroll = _totalCredentialRows > 3;
+  // stateful maxHeight so it updates after deletes/changes
+  const [credentialsMaxHeight, setCredentialsMaxHeight] = React.useState(_shouldCredentialScroll ? (3 * 48 + 56) : undefined);
+
+  React.useEffect(() => {
+    const compute = () => {
+      const should = (_credsList.length + (addingNew ? 1 : 0)) > 3;
+      const mh = should ? (3 * 48 + 56) : undefined;
+      setCredentialsMaxHeight(mh);
+    };
+    compute();
+    let tid = null;
+    const onResize = () => { if (tid) clearTimeout(tid); tid = setTimeout(() => { compute(); tid = null; }, 120); };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); if (tid) clearTimeout(tid); };
+  }, [_credsList.length, addingNew]);
 
   // renderKeys was previously used for grid rendering; not needed with explicit two-column layout
 
@@ -533,29 +690,151 @@ export default function BenchDetails() {
         {/* New framed section titled 'XXXX' inserted below the main form */}
         <Box sx={{ mt: 2 }}>
           <Box sx={{ p: 1, border: '1px solid', borderColor: '#374151', borderRadius: 1, background: 'transparent' }}>
-            <Typography variant="subtitle2" sx={{ display: 'block', mb: 1, color: '#111827' }}>XXXX</Typography>
-            <Box sx={{ minHeight: 40, display: 'flex', gap: 2, alignItems: 'center', flexDirection: 'row', overflowX: 'auto', px: 0.5 }}>
-              {/* per-credential inline items */}
-              {Array.isArray(data.credentials) && data.credentials.length > 0 && data.credentials.map((c) => (
-                <Box key={c.cred_id || c.type_id || c.type} sx={{ display: 'flex', gap: 1, alignItems: 'center', flex: '0 0 auto' }}>
-                  <TextField label={'type'} value={c?.type || ''} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 140, flex: '0 0 140px' }} />
-                  <TextField label={'user'} value={c?.usr || ''} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 160, flex: '0 0 160px' }} />
-                  <TextField label={'secret'} value={revealedSecrets[c.cred_id] ?? maskSecret(c?.pwd)} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 160, flex: '0 0 160px' }} />
-                  <IconButton size="small" onClick={() => handleReveal(c.cred_id)} sx={{ flex: '0 0 auto' }}>
-                    {revealedSecrets[c.cred_id] ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                  </IconButton>
-                </Box>
-              ))}
-
-              {/* credential_port: compact and placed at the end */}
-              {data.credential_port !== undefined && (
-                <TextField label={'port'} value={String(data.credential_port ?? '')} variant="outlined" size="small" InputProps={{ readOnly: true }} sx={{ width: 100, flex: '0 0 100px' }} />
-              )}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle2" sx={{ display: 'block', color: '#111827' }}>XXXX</Typography>
+              <Button size="small" variant="outlined" onClick={() => setAddingNew(true)} disabled={addingNew}>Add credential</Button>
+            </Box>
+            <Box sx={{ minHeight: 40, display: 'flex', gap: 2, alignItems: 'stretch', flexDirection: 'row', overflowX: 'auto', px: 0.5 }}>
+              <TableContainer sx={{ flex: '1 1 auto', maxHeight: credentialsMaxHeight, overflowY: _shouldCredentialScroll ? 'auto' : 'visible' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>User</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Secret</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Port</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {addingNew ? (
+                      <TableRow>
+                        <TableCell>
+                          <Autocomplete
+                            options={credentialTypes}
+                            getOptionLabel={(o) => o?.name || ''}
+                            value={credentialTypes.find(t => t.id === newCredValues.type_id) || null}
+                            onChange={(e, v) => setNewCredValues((s) => ({ ...s, type_id: v ? v.id : '' }))}
+                            renderInput={(params) => <TextField {...params} label="Type" size="small" />}
+                            sx={{ width: 180 }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextField size="small" value={newCredValues.usr} onChange={(e) => setNewCredValues((s) => ({ ...s, usr: e.target.value }))} />
+                        </TableCell>
+                        <TableCell>
+                          <TextField size="small" type={'text'} value={newCredValues.pwd} onChange={(e) => setNewCredValues((s) => ({ ...s, pwd: e.target.value }))} sx={{ width: '100%' }} />
+                        </TableCell>
+                        <TableCell>
+                          <TextField size="small" value={newCredValues.port} onChange={(e) => setNewCredValues((s) => ({ ...s, port: e.target.value }))} />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton size="small" color="primary" disabled={!isNewCredValid} onClick={async () => {
+                              if (!isNewCredValid) return;
+                              const benchId = data?.id || params?.id;
+                              try {
+                                const payload = { type_id: Number(newCredValues.type_id), usr: newCredValues.usr || null, port: newCredValues.port || null, pwd: newCredValues.pwd || null };
+                                const res = await createCredential(benchId, payload);
+                                setData((d) => ({ ...d, credentials: [ ...(Array.isArray(d.credentials) ? d.credentials : []), res ] }));
+                                setAddingNew(false);
+                                setNewCredValues({ type_id: '', usr: '', port: '', pwd: '' });
+                                showToast('Credential created', { type: 'success' });
+                              } catch (e) {
+                                console.error('Could not create credential', e);
+                                showToast('Could not create credential: ' + (e.response?.data?.detail || e.message), { type: 'error' });
+                              }
+                            }} title="Save"><SaveIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={() => { setAddingNew(false); setNewCredValues({ type_id: '', usr: '', port: '', pwd: '' }); }} title="Cancel"><CloseIcon fontSize="small" /></IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {(() => {
+                      const creds = Array.isArray(data.credentials) ? data.credentials : [];
+                      if (!creds.length) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={5} sx={{ textAlign: 'center', color: '#6b7280' }}>No credentials available</TableCell>
+                          </TableRow>
+                        );
+                      }
+                      return creds.map((c) => {
+                        const isEditing = editingCredId === c.cred_id;
+                        return (
+                        <TableRow key={c.cred_id || c.type_id || c.type}>
+                          <TableCell>{c?.type || ''}</TableCell>
+                          <TableCell sx={{ width: 180 }}>
+                            {isEditing ? (
+                              <TextField size="small" value={editValues.usr} onChange={(e) => setEditValues((v) => ({ ...v, usr: e.target.value }))} />
+                            ) : (
+                              c?.usr || ''
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ width: 220 }}>
+                            {isEditing ? (
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <TextField size="small" type={showEditPwd ? 'text' : 'password'} value={editValues.pwd} onChange={(e) => setEditValues((v) => ({ ...v, pwd: e.target.value }))} sx={{ flex: 1 }} />
+                                <IconButton size="small" onClick={() => setShowEditPwd(s => !s)} sx={{ p: '6px' }}>{showEditPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}</IconButton>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, border: '1px solid #e5e7eb', borderRadius: 1, px: 1, py: 0.5 }}>
+                                <Box sx={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#111827' }}>{revealedSecrets[c.cred_id] ?? maskSecret(c?.pwd)}</Box>
+                                <IconButton size="small" onClick={() => handleReveal(c.cred_id)} sx={{ p: '2px' }}>
+                                  {revealedSecrets[c.cred_id] ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                </IconButton>
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ width: 140 }}>
+                            {isEditing ? (
+                              <TextField size="small" value={editValues.port} onChange={(e) => setEditValues((v) => ({ ...v, port: e.target.value }))} />
+                            ) : (
+                              c?.port ?? ''
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ width: 120 }}>
+                            {isEditing ? (
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton size="small" color="primary" onClick={() => saveEditCred(c)} title="Save"><SaveIcon fontSize="small" /></IconButton>
+                                <IconButton size="small" onClick={() => cancelEditCred()} title="Cancel"><CloseIcon fontSize="small" /></IconButton>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton size="small" onClick={() => startEditCred(c)} title="Edit credential"><EditIcon fontSize="small" /></IconButton>
+                                <IconButton size="small" onClick={() => handleDeleteCred(c)} title="Delete credential"><DeleteIcon fontSize="small" /></IconButton>
+                              </Box>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              
             </Box>
           </Box>
         </Box>
       </Paper>
-      
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title={'Delete credential'}
+        contentText={'Are you sure you want to delete this credential? This action cannot be undone.'}
+        onCancel={cancelDeleteCred}
+        onConfirm={confirmDeleteCred}
+        confirmText={'Delete'}
+        cancelText={'Cancel'}
+        confirmColor={'error'}
+      >
+        {toDeleteCred ? (
+          <Box sx={{ mt: 1 }}>
+            <div>Type: {toDeleteCred.type || ''}</div>
+            <div>User: {toDeleteCred.usr || ''}</div>
+          </Box>
+        ) : null}
+      </ConfirmDialog>
+
     </Box>
   );
 }

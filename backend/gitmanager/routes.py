@@ -442,6 +442,162 @@ def reveal_credential_secret(
         raise HTTPException(status_code=500, detail=f"Could not reveal credential: {e}")
 
 
+class CredentialUpdatePayload(BaseModel):
+    usr: Optional[str] = None
+    port: Optional[int] = None
+    pwd: Optional[str] = None
+
+
+class CredentialCreatePayload(BaseModel):
+    type_id: int
+    usr: Optional[str] = None
+    port: Optional[str] = None
+    pwd: Optional[str] = None
+
+
+@router.post('/benches/{bench_id}/credentials')
+def create_credential(
+    bench_id: int,
+    payload: CredentialCreatePayload,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Create a new credential for a bench."""
+    try:
+        # ensure bench exists
+        e = db.query(tmodels.TEquipment).filter(tmodels.TEquipment.id_equipment == bench_id).first()
+        if not e:
+            raise HTTPException(status_code=404, detail="Bench not found")
+        provided = payload.model_dump(exclude_unset=True)
+        # validate credential type exists
+        t_id = provided.get('type_id')
+        ct = db.query(tmodels.TEqptCredType).filter(tmodels.TEqptCredType.idT_EQPT_CRED_TYPE == t_id).first()
+        if not ct:
+            raise HTTPException(status_code=400, detail=f"Credential type id '{t_id}' not found")
+        c = tmodels.TEqptCred()
+        try:
+            c.T_EQPT_CRED_TYPE_id_cred_type = t_id
+        except Exception:
+            pass
+        try:
+            c.T_EQUIPMENT_id_equipment = bench_id
+        except Exception:
+            pass
+        if 'usr' in provided:
+            try:
+                c.usr = provided.get('usr')
+            except Exception:
+                pass
+        if 'port' in provided:
+            try:
+                c.port = provided.get('port')
+            except Exception:
+                pass
+        if 'pwd' in provided:
+            try:
+                c.pwd = provided.get('pwd')
+            except Exception:
+                pass
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return {
+            'cred_id': getattr(c, 'cred_id', None),
+            'type_id': getattr(c, 'T_EQPT_CRED_TYPE_id_cred_type', None),
+            'type': getattr(c.eqpt_cred_type, 'cr_type', None) if getattr(c, 'eqpt_cred_type', None) else None,
+            'usr': getattr(c, 'usr', None),
+            'pwd': None,
+            'port': getattr(c, 'port', None)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not create credential: {e}")
+
+
+@router.get('/credential-types')
+def list_credential_types(db: Session = Depends(get_db)):
+    """Return all credential types (T_EQPT_CRED_TYPE)."""
+    try:
+        rows = db.query(tmodels.TEqptCredType).all()
+        result = []
+        for r in rows:
+            result.append({ 'id': getattr(r, 'idT_EQPT_CRED_TYPE', None), 'name': getattr(r, 'cr_type', None) })
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not list credential types: {e}")
+
+
+@router.patch('/benches/{bench_id}/credentials/{cred_id}')
+def update_credential(
+    bench_id: int,
+    cred_id: int,
+    payload: CredentialUpdatePayload,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Update a credential (usr, port, pwd) for a specific bench. Returns the updated credential with pwd redacted."""
+    try:
+        c = db.query(tmodels.TEqptCred).filter(tmodels.TEqptCred.cred_id == cred_id, tmodels.TEqptCred.T_EQUIPMENT_id_equipment == bench_id).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Credential not found for this bench")
+        provided = payload.model_dump(exclude_unset=True)
+        if 'usr' in provided:
+            try:
+                c.usr = provided.get('usr')
+            except Exception:
+                pass
+        if 'port' in provided:
+            try:
+                c.port = provided.get('port')
+            except Exception:
+                pass
+        if 'pwd' in provided:
+            try:
+                c.pwd = provided.get('pwd')
+            except Exception:
+                pass
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return {
+            'cred_id': getattr(c, 'cred_id', None),
+            'type_id': getattr(c, 'T_EQPT_CRED_TYPE_id_cred_type', None),
+            'type': getattr(c.eqpt_cred_type, 'cr_type', None) if getattr(c, 'eqpt_cred_type', None) else None,
+            'usr': getattr(c, 'usr', None),
+            'pwd': None,
+            'port': getattr(c, 'port', None)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not update credential: {e}")
+
+
+@router.delete('/benches/{bench_id}/credentials/{cred_id}')
+def delete_credential(
+    bench_id: int,
+    cred_id: int,
+    username: str = Depends(get_username_from_token),
+    db: Session = Depends(get_db)
+):
+    """Delete a credential for a bench."""
+    try:
+        c = db.query(tmodels.TEqptCred).filter(tmodels.TEqptCred.cred_id == cred_id, tmodels.TEqptCred.T_EQUIPMENT_id_equipment == bench_id).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Credential not found for this bench")
+        db.delete(c)
+        db.commit()
+        return { 'deleted': cred_id }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not delete credential: {e}")
+
+
 class BenchUpdatePayload(BaseModel):
     # Partial payload: name and/or owner_id/brand_id may be provided. Both optional for PATCH semantics.
     name: Optional[str] = Field(None, min_length=1, pattern=r"^\S+$")

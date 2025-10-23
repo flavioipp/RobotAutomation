@@ -131,6 +131,26 @@ export async function revealCredential(benchId, credId) {
   return response.data; // { cred_id, pwd }
 }
 
+export async function updateCredential(benchId, credId, payload) {
+  const response = await axios.patch(`${API_BASE_URL}/db/benches/${benchId}/credentials/${credId}`, payload);
+  return response.data;
+}
+
+export async function deleteCredential(benchId, credId) {
+  const response = await axios.delete(`${API_BASE_URL}/db/benches/${benchId}/credentials/${credId}`);
+  return response.data;
+}
+
+export async function createCredential(benchId, payload) {
+  const response = await axios.post(`${API_BASE_URL}/db/benches/${benchId}/credentials`, payload);
+  return response.data;
+}
+
+export async function getCredentialTypes() {
+  const response = await axios.get(`${API_BASE_URL}/db/credential-types`);
+  return response.data;
+}
+
 // Authentication helpers
 export async function login(username, password) {
   const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
